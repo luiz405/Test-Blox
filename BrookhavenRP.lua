@@ -1,7 +1,6 @@
 --[[
-    BROOKHAVEN RP HUB - FINAL
-    Zero dependencias externas
-    Cole direto no executor
+    BROOKHAVEN RP HUB - SECURITY TESTING TOOLKIT v9.0
+    Para testes de seguranca em jogos proprios
     Delete = Abrir/Fechar menu
 ]]
 
@@ -10,6 +9,7 @@ local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 local UserInputService = game:GetService("UserInputService")
 local TeleportService = game:GetService("TeleportService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LP = Players.LocalPlayer
 
 local noclipConn, flyConn, flyBody, flyGyro
@@ -17,14 +17,20 @@ local NoclipOn = false
 local FlyOn = false
 local AntiAFKOn = false
 local EspOn = false
+local RemoteSpyOn = false
+local GodModeOn = false
+local NukeOn = false
 
 local ESPFolder = Instance.new("Folder")
 ESPFolder.Name = "ESP_Highlights"
 ESPFolder.Parent = workspace
 
+local RemoteLog = {}
+local HookedRemotes = {}
+
 local function Notify(txt)
     pcall(function()
-        StarterGui:SetCore("SendNotification", { Title = "Brookhaven Hub", Text = txt, Duration = 3 })
+        StarterGui:SetCore("SendNotification", { Title = "Security Test", Text = txt, Duration = 4 })
     end)
 end
 
@@ -42,40 +48,28 @@ local function GetHum()
     return c and c:FindFirstChildOfClass("Humanoid")
 end
 
-local oldWS, oldJP
-local c = GetChar()
-if c then
-    local h = c:FindFirstChildOfClass("Humanoid")
-    if h then oldWS = h.WalkSpeed; oldJP = h.JumpPower end
+local function LogRemote(name, args)
+    table.insert(RemoteLog, {
+        time = os.time(),
+        name = name,
+        args = args
+    })
+    if #RemoteLog > 200 then table.remove(RemoteLog, 1) end
 end
-LP.CharacterAdded:Connect(function(ch)
-    local h = ch:WaitForChild("Humanoid")
-    if NoclipOn then h.WalkSpeed = 24 else h.WalkSpeed = oldWS or 16 end
-    if FlyOn then
-        task.wait(0.5)
-        local hrp = ch:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            flyGyro = Instance.new("BodyGyro", hrp)
-            flyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-            flyGyro.P = 9000
-            flyGyro.D = 500
-            flyBody = Instance.new("BodyVelocity", hrp)
-            flyBody.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-            flyBody.Velocity = Vector3.zero
-        end
-    end
-end)
 
+-- ============================================================
+-- UI
+-- ============================================================
 local gui = Instance.new("ScreenGui")
-gui.Name = "BrookhavenHub"
+gui.Name = "SecTestHub"
 gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = LP:WaitForChild("PlayerGui")
 
 local main = Instance.new("Frame")
 main.Name = "Main"
-main.Size = UDim2.new(0, 380, 0, 480)
-main.Position = UDim2.new(0.5, -190, 0.5, -240)
+main.Size = UDim2.new(0, 420, 0, 520)
+main.Position = UDim2.new(0.5, -210, 0.5, -260)
 main.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
 main.BorderSizePixel = 0
 main.Active = true
@@ -85,9 +79,9 @@ main.Parent = gui
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 8)
 
 local stroke = Instance.new("UIStroke")
-stroke.Color = Color3.fromRGB(0, 120, 255)
-stroke.Thickness = 1
-stroke.Transparency = 0.4
+stroke.Color = Color3.fromRGB(255, 50, 50)
+stroke.Thickness = 1.5
+stroke.Transparency = 0.3
 stroke.Parent = main
 
 local header = Instance.new("Frame")
@@ -101,8 +95,8 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 14, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "BROOKHAVEN RP HUB"
-title.TextColor3 = Color3.fromRGB(0, 160, 255)
+title.Text = "SECURITY TEST HUB"
+title.TextColor3 = Color3.fromRGB(255, 60, 60)
 title.TextSize = 16
 title.Font = Enum.Font.GothamBold
 title.TextXAlignment = Enum.TextXAlignment.Left
@@ -140,7 +134,7 @@ local footer = Instance.new("TextLabel")
 footer.Size = UDim2.new(1, 0, 0, 16)
 footer.Position = UDim2.new(0, 0, 1, -20)
 footer.BackgroundTransparency = 1
-footer.Text = "Delete = Abrir/Fechar"
+footer.Text = "Delete = Abrir/Fechar | Ferramentas de teste de seguranca"
 footer.TextColor3 = Color3.fromRGB(80, 80, 110)
 footer.TextSize = 11
 footer.Font = Enum.Font.Gotham
@@ -148,25 +142,18 @@ footer.Parent = main
 
 local tabBtns = {}
 local tabFrames = {}
-local currentTab = nil
 
 local function switchTab(name)
     for n, f in pairs(tabFrames) do f.Visible = (n == name) end
     for n, b in pairs(tabBtns) do
-        if n == name then
-            b.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-            b.TextColor3 = Color3.new(1, 1, 1)
-        else
-            b.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-            b.TextColor3 = Color3.fromRGB(140, 140, 170)
-        end
+        b.BackgroundColor3 = (n == name) and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(30, 30, 45)
+        b.TextColor3 = (n == name) and Color3.new(1, 1, 1) or Color3.fromRGB(140, 140, 170)
     end
-    currentTab = name
 end
 
 local function addTab(name)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 60, 1, 0)
+    b.Size = UDim2.new(0, 68, 1, 0)
     b.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
     b.Text = name
     b.TextColor3 = Color3.fromRGB(140, 140, 170)
@@ -174,12 +161,11 @@ local function addTab(name)
     b.Font = Enum.Font.GothamBold
     b.Parent = tabs
     Instance.new("UICorner", b).CornerRadius = UDim.new(0, 5)
-
     local f = Instance.new("ScrollingFrame")
     f.Size = UDim2.new(1, 0, 1, 0)
     f.BackgroundTransparency = 1
     f.ScrollBarThickness = 3
-    f.ScrollBarImageColor3 = Color3.fromRGB(0, 120, 255)
+    f.ScrollBarImageColor3 = Color3.fromRGB(255, 50, 50)
     f.BorderSizePixel = 0
     f.CanvasSize = UDim2.new(0, 0, 0, 0)
     f.Visible = false
@@ -188,7 +174,6 @@ local function addTab(name)
     Instance.new("UIPadding", f).PaddingTop = UDim.new(0, 4)
     Instance.new("UIPadding", f).PaddingLeft = UDim.new(0, 4)
     Instance.new("UIPadding", f).PaddingRight = UDim.new(0, 4)
-
     tabBtns[name] = b
     tabFrames[name] = f
     b.MouseButton1Click:Connect(function() switchTab(name) end)
@@ -200,7 +185,7 @@ local function addSection(parent, text)
     s.Size = UDim2.new(1, 0, 0, 22)
     s.BackgroundTransparency = 1
     s.Text = "  " .. text
-    s.TextColor3 = Color3.fromRGB(0, 140, 255)
+    s.TextColor3 = Color3.fromRGB(255, 60, 60)
     s.TextSize = 12
     s.Font = Enum.Font.GothamBold
     s.TextXAlignment = Enum.TextXAlignment.Left
@@ -214,7 +199,6 @@ local function addToggle(parent, text, callback)
     f.BorderSizePixel = 0
     f.Parent = parent
     Instance.new("UICorner", f).CornerRadius = UDim.new(0, 5)
-
     local l = Instance.new("TextLabel")
     l.Size = UDim2.new(1, -52, 1, 0)
     l.Position = UDim2.new(0, 10, 0, 0)
@@ -225,7 +209,6 @@ local function addToggle(parent, text, callback)
     l.Font = Enum.Font.Gotham
     l.TextXAlignment = Enum.TextXAlignment.Left
     l.Parent = f
-
     local tg = Instance.new("TextButton")
     tg.Size = UDim2.new(0, 40, 0, 20)
     tg.Position = UDim2.new(1, -48, 0.5, -10)
@@ -233,19 +216,17 @@ local function addToggle(parent, text, callback)
     tg.Text = ""
     tg.Parent = f
     Instance.new("UICorner", tg).CornerRadius = UDim.new(0, 10)
-
     local dot = Instance.new("Frame")
     dot.Size = UDim2.new(0, 16, 0, 16)
     dot.Position = UDim2.new(0, 2, 0.5, -8)
     dot.BackgroundColor3 = Color3.fromRGB(160, 160, 180)
     dot.Parent = tg
     Instance.new("UICorner", dot).CornerRadius = UDim.new(0, 8)
-
     local on = false
     tg.MouseButton1Click:Connect(function()
         on = not on
         if on then
-            tg.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+            tg.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
             dot:TweenPosition(UDim2.new(1, -18, 0.5, -8), "Out", "Quad", 0.12, true)
             dot.BackgroundColor3 = Color3.new(1, 1, 1)
         else
@@ -260,15 +241,15 @@ end
 local function addButton(parent, text, callback)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(1, 0, 0, 32)
-    b.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+    b.BackgroundColor3 = Color3.fromRGB(180, 30, 30)
     b.Text = text
     b.TextColor3 = Color3.new(1, 1, 1)
     b.TextSize = 13
     b.Font = Enum.Font.GothamBold
     b.Parent = parent
     Instance.new("UICorner", b).CornerRadius = UDim.new(0, 5)
-    b.MouseEnter:Connect(function() b.BackgroundColor3 = Color3.fromRGB(0, 130, 240) end)
-    b.MouseLeave:Connect(function() b.BackgroundColor3 = Color3.fromRGB(0, 100, 200) end)
+    b.MouseEnter:Connect(function() b.BackgroundColor3 = Color3.fromRGB(220, 40, 40) end)
+    b.MouseLeave:Connect(function() b.BackgroundColor3 = Color3.fromRGB(180, 30, 30) end)
     b.MouseButton1Click:Connect(callback)
 end
 
@@ -279,7 +260,6 @@ local function addSlider(parent, text, min, max, def, callback)
     f.BorderSizePixel = 0
     f.Parent = parent
     Instance.new("UICorner", f).CornerRadius = UDim.new(0, 5)
-
     local l = Instance.new("TextLabel")
     l.Size = UDim2.new(0.65, 0, 0, 18)
     l.Position = UDim2.new(0, 10, 0, 3)
@@ -290,45 +270,36 @@ local function addSlider(parent, text, min, max, def, callback)
     l.Font = Enum.Font.Gotham
     l.TextXAlignment = Enum.TextXAlignment.Left
     l.Parent = f
-
     local vl = Instance.new("TextLabel")
     vl.Size = UDim2.new(0.35, -10, 0, 18)
     vl.Position = UDim2.new(0.65, 0, 0, 3)
     vl.BackgroundTransparency = 1
     vl.Text = tostring(def)
-    vl.TextColor3 = Color3.fromRGB(0, 160, 255)
+    vl.TextColor3 = Color3.fromRGB(255, 80, 80)
     vl.TextSize = 12
     vl.Font = Enum.Font.GothamBold
     vl.TextXAlignment = Enum.TextXAlignment.Right
     vl.Parent = f
-
     local bar = Instance.new("Frame")
     bar.Size = UDim2.new(1, -20, 0, 6)
     bar.Position = UDim2.new(0, 10, 0, 28)
     bar.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
     bar.Parent = f
     Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 3)
-
     local fill = Instance.new("Frame")
     fill.Size = UDim2.new((def - min) / (max - min), 0, 1, 0)
-    fill.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+    fill.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
     fill.Parent = bar
     Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 3)
-
     local knob = Instance.new("Frame")
     knob.Size = UDim2.new(0, 14, 0, 14)
     knob.Position = UDim2.new((def - min) / (max - min), -7, 0.5, -7)
     knob.BackgroundColor3 = Color3.new(1, 1, 1)
     knob.Parent = bar
     Instance.new("UICorner", knob).CornerRadius = UDim.new(0, 7)
-
     local drag = false
-    knob.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = true end
-    end)
-    knob.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end
-    end)
+    knob.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = true end end)
+    knob.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
     UserInputService.InputChanged:Connect(function(i)
         if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
             local p = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
@@ -339,78 +310,6 @@ local function addSlider(parent, text, min, max, def, callback)
             callback(v)
         end
     end)
-end
-
-local function addDropdown(parent, text, opts, callback)
-    local f = Instance.new("Frame")
-    f.Size = UDim2.new(1, 0, 0, 34)
-    f.BackgroundColor3 = Color3.fromRGB(28, 28, 42)
-    f.BorderSizePixel = 0
-    f.Parent = parent
-    Instance.new("UICorner", f).CornerRadius = UDim.new(0, 5)
-    f.ClipsDescendants = true
-
-    local l = Instance.new("TextLabel")
-    l.Size = UDim2.new(0.45, 0, 0, 34)
-    l.Position = UDim2.new(0, 10, 0, 0)
-    l.BackgroundTransparency = 1
-    l.Text = text
-    l.TextColor3 = Color3.fromRGB(200, 200, 220)
-    l.TextSize = 12
-    l.Font = Enum.Font.Gotham
-    l.TextXAlignment = Enum.TextXAlignment.Left
-    l.Parent = f
-
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.5, -10, 0, 24)
-    btn.Position = UDim2.new(0.48, 0, 0, 5)
-    btn.BackgroundColor3 = Color3.fromRGB(38, 38, 55)
-    btn.Text = "Selecionar..."
-    btn.TextColor3 = Color3.fromRGB(160, 160, 180)
-    btn.TextSize = 11
-    btn.Font = Enum.Font.Gotham
-    btn.Parent = f
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
-
-    local list = Instance.new("ScrollingFrame")
-    list.Size = UDim2.new(1, -12, 0, 100)
-    list.Position = UDim2.new(0, 6, 0, 38)
-    list.BackgroundTransparency = 1
-    list.ScrollBarThickness = 2
-    list.ScrollBarImageColor3 = Color3.fromRGB(0, 120, 255)
-    list.BorderSizePixel = 0
-    list.CanvasSize = UDim2.new(0, 0, 0, 0)
-    list.Visible = false
-    list.Parent = f
-    Instance.new("UIListLayout", list).Padding = UDim.new(0, 2)
-
-    local open = false
-    btn.MouseButton1Click:Connect(function()
-        open = not open
-        list.Visible = open
-        f.Size = open and UDim2.new(1, 0, 0, 142) or UDim2.new(1, 0, 0, 34)
-    end)
-
-    for _, o in ipairs(opts) do
-        local ob = Instance.new("TextButton")
-        ob.Size = UDim2.new(1, 0, 0, 24)
-        ob.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-        ob.Text = o
-        ob.TextColor3 = Color3.fromRGB(180, 180, 200)
-        ob.TextSize = 11
-        ob.Font = Enum.Font.Gotham
-        ob.Parent = list
-        Instance.new("UICorner", ob).CornerRadius = UDim.new(0, 4)
-        ob.MouseEnter:Connect(function() ob.BackgroundColor3 = Color3.fromRGB(0, 80, 180) end)
-        ob.MouseLeave:Connect(function() ob.BackgroundColor3 = Color3.fromRGB(30, 30, 45) end)
-        ob.MouseButton1Click:Connect(function()
-            btn.Text = o
-            open = false
-            list.Visible = false
-            f.Size = UDim2.new(1, 0, 0, 34)
-            callback(o)
-        end)
-    end
 end
 
 local function addLabel(parent, text)
@@ -425,13 +324,44 @@ local function addLabel(parent, text)
     l.Parent = parent
 end
 
-local tL = addTab("Local")
-local tE = addTab("ESP")
-local tT = addTab("Tools")
-local tM = addTab("Misc")
+local function addLogBox(parent, name, height)
+    local l = Instance.new("TextLabel")
+    l.Size = UDim2.new(1, 0, 0, 18)
+    l.BackgroundTransparency = 1
+    l.Text = "  " .. name
+    l.TextColor3 = Color3.fromRGB(200, 200, 220)
+    l.TextSize = 11
+    l.Font = Enum.Font.GothamBold
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    l.Parent = parent
+    local box = Instance.new("ScrollingFrame")
+    box.Size = UDim2.new(1, 0, 0, height or 100)
+    box.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+    box.BorderSizePixel = 0
+    box.ScrollBarThickness = 3
+    box.ScrollBarImageColor3 = Color3.fromRGB(255, 50, 50)
+    box.CanvasSize = UDim2.new(0, 0, 0, 0)
+    box.Parent = parent
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
+    local layout = Instance.new("UIListLayout", box)
+    layout.Padding = UDim.new(0, 1)
+    return box
+end
 
-addSection(tL, "Movimento")
-addToggle(tL, "Noclip", function(v)
+-- ============================================================
+-- TABS
+-- ============================================================
+local tExploit = addTab("Exploit")
+local tRemotes = addTab("Remotes")
+local tDump = addTab("Dump")
+local tNetwork = addTab("Network")
+
+-- ============================================================
+-- TAB: EXPLOIT
+-- ============================================================
+addSection(tExploit, "Movimento")
+
+addToggle(tExploit, "Noclip (Atravessar paredes)", function(v)
     NoclipOn = v
     if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
     if v then
@@ -439,11 +369,11 @@ addToggle(tL, "Noclip", function(v)
             local ch = GetChar()
             if ch then for _, p in pairs(ch:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end
         end)
-        Notify("Noclip Ativado")
-    else Notify("Noclip Desativado") end
+        Notify("Noclip ON")
+    else Notify("Noclip OFF") end
 end)
 
-addToggle(tL, "Fly (WASD)", function(v)
+addToggle(tExploit, "Fly (WASD + Space/Shift)", function(v)
     FlyOn = v
     if flyConn then flyConn:Disconnect(); flyConn = nil end
     if flyBody then flyBody:Destroy(); flyBody = nil end
@@ -469,91 +399,404 @@ addToggle(tL, "Fly (WASD)", function(v)
                 if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then d = d - Vector3.new(0, 1, 0) end
                 if flyBody and flyGyro then flyBody.Velocity = d.Unit * 80; flyGyro.CFrame = cam.CFrame end
             end)
-            Notify("Fly Ativado")
+            Notify("Fly ON")
         end
-    else Notify("Fly Desativado") end
+    else Notify("Fly OFF") end
 end)
 
-addSlider(tL, "Walk Speed", 16, 200, 16, function(v)
+addSlider(tExploit, "Walk Speed", 16, 500, 16, function(v)
     local h = GetHum(); if h then h.WalkSpeed = v end
 end)
 
-addSlider(tL, "Jump Power", 50, 200, 50, function(v)
+addSlider(tExploit, "Jump Power", 50, 500, 50, function(v)
     local h = GetHum(); if h then h.JumpPower = v end
 end)
 
-addSection(tL, "Outros")
-addButton(tL, "Resetar Personagem", function()
-    local h = GetHum(); if h then h.Health = 0 end
-end)
-addButton(tL, "Copiar Server ID", function()
-    setclipboard(game.JobId); Notify("Copiado!")
+addSection(tExploit, "ExploraÃ§Ã£o")
+
+addToggle(tExploit, "God Mode (InvencÃ­vel)", function(v)
+    GodModeOn = v
+    if v then
+        spawn(function()
+            while GodModeOn do
+                task.wait(0.1)
+                local c = GetChar()
+                if c then
+                    local h = c:FindFirstChildOfClass("Humanoid")
+                    if h then
+                        h.Health = h.MaxHealth
+                        h:GetPropertyChangedSignal("Health"):Connect(function()
+                            if GodModeOn then h.Health = h.MaxHealth end
+                        end)
+                    end
+                end
+            end
+        end)
+        Notify("God Mode ON")
+    else Notify("God Mode OFF") end
 end)
 
-addSection(tE, "Visual")
-local function UpdateESP()
-    for _, o in pairs(ESPFolder:GetChildren()) do o:Destroy() end
-    if not EspOn then return end
+addToggle(tExploit, "Invisibility", function(v)
+    if v then
+        local ch = GetChar()
+        if ch then
+            for _, p in pairs(ch:GetDescendants()) do
+                if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+                    p.Transparency = 1
+                elseif p:IsA("Decal") then
+                    p.Transparency = 1
+                end
+            end
+            ch.DescendantAdded:Connect(function(p)
+                if v and p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+                    p.Transparency = 1
+                elseif v and p:IsA("Decal") then
+                    p.Transparency = 1
+                end
+            end)
+            Notify("Invisibility ON")
+        end
+    else Notify("Invisibility OFF") end
+end)
+
+addButton(tExploit, "Resetar Personagem", function()
+    local h = GetHum(); if h then h.Health = 0 end
+end)
+
+addButton(tExploit, "ForÃ§ar Respawn", function()
+    local ch = GetChar()
+    if ch then
+        local h = ch:FindFirstChildOfClass("Humanoid")
+        if h then h.Health = 0 end
+        task.wait(1)
+        local hrp = GetHRP()
+        if hrp then hrp.CFrame = hrp.CFrame + Vector3.new(0, -50, 0) end
+    end
+end)
+
+-- ============================================================
+-- TAB: REMOTES
+-- ============================================================
+addSection(tRemotes, "Remote Spy")
+
+local logBox = addLogBox(tRemotes, "Log de Remotes", 120)
+
+addToggle(tRemotes, "Remote Spy (Capturar chamadas)", function(v)
+    RemoteSpyOn = v
+    if v then
+        Notify("Remote Spy ON - capturando...")
+        for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+            if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) and not HookedRemotes[obj] then
+                HookedRemotes[obj] = true
+                if obj:IsA("RemoteEvent") then
+                    obj.OnClientEvent:Connect(function(...)
+                        if RemoteSpyOn then
+                            local args = {...}
+                            LogRemote(obj.Name, args)
+                            local lbl = Instance.new("TextLabel")
+                            lbl.Size = UDim2.new(1, 0, 0, 16)
+                            lbl.BackgroundTransparency = 1
+                            lbl.Text = "  [RECV] " .. obj.Name .. " | " .. tostring(#args) .. " args"
+                            lbl.TextColor3 = Color3.fromRGB(100, 200, 255)
+                            lbl.TextSize = 10
+                            lbl.Font = Enum.Font.Code
+                            lbl.TextXAlignment = Enum.TextXAlignment.Left
+                            lbl.Parent = logBox
+                            logBox.CanvasSize = UDim2.new(0, 0, 0, logBox.CanvasSize.Y.Offset + 16)
+                        end
+                    end)
+                end
+            end
+        end
+        ReplicatedStorage.DescendantAdded:Connect(function(obj)
+            if RemoteSpyOn and (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) and not HookedRemotes[obj] then
+                HookedRemotes[obj] = true
+                if obj:IsA("RemoteEvent") then
+                    obj.OnClientEvent:Connect(function(...)
+                        if RemoteSpyOn then
+                            local args = {...}
+                            LogRemote(obj.Name, args)
+                            local lbl = Instance.new("TextLabel")
+                            lbl.Size = UDim2.new(1, 0, 0, 16)
+                            lbl.BackgroundTransparency = 1
+                            lbl.Text = "  [RECV] " .. obj.Name .. " | " .. tostring(#args) .. " args"
+                            lbl.TextColor3 = Color3.fromRGB(100, 200, 255)
+                            lbl.TextSize = 10
+                            lbl.Font = Enum.Font.Code
+                            lbl.TextXAlignment = Enum.TextXAlignment.Left
+                            lbl.Parent = logBox
+                            logBox.CanvasSize = UDim2.new(0, 0, 0, logBox.CanvasSize.Y.Offset + 16)
+                        end
+                    end)
+                end
+            end
+        end)
+    else
+        Notify("Remote Spy OFF")
+    end
+end)
+
+addButton(tRemotes, "Limpar Log", function()
+    for _, c in pairs(logBox:GetChildren()) do c:Destroy() end
+    RemoteLog = {}
+    logBox.CanvasSize = UDim2.new(0, 0, 0, 0)
+    Notify("Log limpo")
+end)
+
+addSection(tRemotes, "Envio Manual")
+
+addButton(tRemotes, "FireServer em todos os RemoteEvents", function()
+    local count = 0
+    for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") then
+            pcall(function()
+                obj:FireServer("Test", 123, true)
+                count = count + 1
+                local lbl = Instance.new("TextLabel")
+                lbl.Size = UDim2.new(1, 0, 0, 16)
+                lbl.BackgroundTransparency = 1
+                lbl.Text = "  [FIRE] " .. obj.Name
+                lbl.TextColor3 = Color3.fromRGB(255, 100, 100)
+                lbl.TextSize = 10
+                lbl.Font = Enum.Font.Code
+                lbl.TextXAlignment = Enum.TextXAlignment.Left
+                lbl.Parent = logBox
+                logBox.CanvasSize = UDim2.new(0, 0, 0, logBox.CanvasSize.Y.Offset + 16)
+            end)
+        end
+    end
+    Notify("FireServer em " .. count .. " remotes")
+end)
+
+addButton(tRemotes, "InvokeServer em todos os RemoteFunctions", function()
+    local count = 0
+    for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteFunction") then
+            pcall(function()
+                obj:InvokeServer("Test", 123, true)
+                count = count + 1
+                local lbl = Instance.new("TextLabel")
+                lbl.Size = UDim2.new(1, 0, 0, 16)
+                lbl.BackgroundTransparency = 1
+                lbl.Text = "  [INVOKE] " .. obj.Name
+                lbl.TextColor3 = Color3.fromRGB(255, 180, 50)
+                lbl.TextSize = 10
+                lbl.Font = Enum.Font.Code
+                lbl.TextXAlignment = Enum.TextXAlignment.Left
+                lbl.Parent = logBox
+                logBox.CanvasSize = UDim2.new(0, 0, 0, logBox.CanvasSize.Y.Offset + 16)
+            end)
+        end
+    end
+    Notify("InvokeServer em " .. count .. " remote functions")
+end)
+
+addButton(tRemotes, "FireServer com nil/tables grandes", function()
+    local bigTable = {}
+    for i = 1, 1000 do bigTable[i] = string.rep("A", 100) end
+    local count = 0
+    for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") then
+            pcall(function()
+                obj:FireServer(nil, bigTable, {}, nil, math.huge, -math.huge)
+                count = count + 1
+            end)
+        end
+    end
+    Notify("Stress test em " .. count .. " remotes (tabelas grandes + nil)")
+end)
+
+-- ============================================================
+-- TAB: DUMP
+-- ============================================================
+addSection(tDump, "AnÃ¡lise do Jogo")
+
+local dumpBox = addLogBox(tDump, "Resultado", 160)
+
+addButton(tDump, "Listar TODOS os Remotes", function()
+    for _, c in pairs(dumpBox:GetChildren()) do c:Destroy() end
+    dumpBox.CanvasSize = UDim2.new(0, 0, 0, 0)
+    local count = 0
+    for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            count = count + 1
+            local tipo = obj:IsA("RemoteEvent") and "Event" or "Function"
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, 0, 0, 14)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = "  [" .. tipo .. "] " .. obj:GetFullName()
+            lbl.TextColor3 = (tipo == "Event") and Color3.fromRGB(100, 200, 255) or Color3.fromRGB(255, 200, 100)
+            lbl.TextSize = 10
+            lbl.Font = Enum.Font.Code
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.Parent = dumpBox
+            dumpBox.CanvasSize = UDim2.new(0, 0, 0, dumpBox.CanvasSize.Y.Offset + 14)
+        end
+    end
+    addLabel(dumpBox, "Total: " .. count .. " remotes encontrados")
+    dumpBox.CanvasSize = UDim2.new(0, 0, 0, dumpBox.CanvasSize.Y.Offset + 20)
+    Notify(count .. " remotes encontrados")
+end)
+
+addButton(tDump, "Listar ModuleScripts", function()
+    for _, c in pairs(dumpBox:GetChildren()) do c:Destroy() end
+    dumpBox.CanvasSize = UDim2.new(0, 0, 0, 0)
+    local count = 0
+    for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("ModuleScript") then
+            count = count + 1
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, 0, 0, 14)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = "  [Module] " .. obj:GetFullName()
+            lbl.TextColor3 = Color3.fromRGB(150, 255, 150)
+            lbl.TextSize = 10
+            lbl.Font = Enum.Font.Code
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.Parent = dumpBox
+            dumpBox.CanvasSize = UDim2.new(0, 0, 0, dumpBox.CanvasSize.Y.Offset + 14)
+        end
+    end
+    Notify(count .. " ModuleScripts encontrados")
+end)
+
+addButton(tDump, "Listar LocalScripts", function()
+    for _, c in pairs(dumpBox:GetChildren()) do c:Destroy() end
+    dumpBox.CanvasSize = UDim2.new(0, 0, 0, 0)
+    local count = 0
+    for _, obj in pairs(game:GetDescendants()) do
+        if obj:IsA("LocalScript") then
+            count = count + 1
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, 0, 0, 14)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = "  [LocalScript] " .. obj:GetFullName()
+            lbl.TextColor3 = Color3.fromRGB(200, 150, 255)
+            lbl.TextSize = 10
+            lbl.Font = Enum.Font.Code
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.Parent = dumpBox
+            dumpBox.CanvasSize = UDim2.new(0, 0, 0, dumpBox.CanvasSize.Y.Offset + 14)
+        end
+    end
+    Notify(count .. " LocalScripts encontrados")
+end)
+
+addButton(tDump, "Listar BindableEvents/Functions", function()
+    for _, c in pairs(dumpBox:GetChildren()) do c:Destroy() end
+    dumpBox.CanvasSize = UDim2.new(0, 0, 0, 0)
+    local count = 0
+    for _, obj in pairs(game:GetDescendants()) do
+        if obj:IsA("BindableEvent") or obj:IsA("BindableFunction") then
+            count = count + 1
+            local tipo = obj:IsA("BindableEvent") and "BEvent" or "BFunc"
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, 0, 0, 14)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = "  [" .. tipo .. "] " .. obj:GetFullName()
+            lbl.TextColor3 = Color3.fromRGB(255, 200, 100)
+            lbl.TextSize = 10
+            lbl.Font = Enum.Font.Code
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.Parent = dumpBox
+            dumpBox.CanvasSize = UDim2.new(0, 0, 0, dumpBox.CanvasSize.Y.Offset + 14)
+        end
+    end
+    Notify(count .. " Bindables encontrados")
+end)
+
+addButton(tDump, "Estrutura do Workspace", function()
+    for _, c in pairs(dumpBox:GetChildren()) do c:Destroy() end
+    dumpBox.CanvasSize = UDim2.new(0, 0, 0, 0)
+    local function scan(parent, depth)
+        for _, obj in pairs(parent:GetChildren()) do
+            local prefix = string.rep("  ", depth)
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, 0, 0, 14)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = "  " .. prefix .. obj.Name .. " [" .. obj.ClassName .. "]"
+            lbl.TextColor3 = Color3.fromRGB(180, 180, 200)
+            lbl.TextSize = 10
+            lbl.Font = Enum.Font.Code
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.Parent = dumpBox
+            dumpBox.CanvasSize = UDim2.new(0, 0, 0, dumpBox.CanvasSize.Y.Offset + 14)
+            if depth < 3 then scan(obj, depth + 1) end
+        end
+    end
+    scan(workspace, 0)
+    Notify("Workspace structure dumped")
+end)
+
+addButton(tDump, "Listar Players + Dados", function()
+    for _, c in pairs(dumpBox:GetChildren()) do c:Destroy() end
+    dumpBox.CanvasSize = UDim2.new(0, 0, 0, 0)
     for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= LP and plr.Character then
-            local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local b = Instance.new("BoxHandleAdornment")
-                b.Adornee = hrp; b.Size = Vector3.new(4, 5, 1)
-                b.Color3 = Color3.fromRGB(0, 140, 255); b.Transparency = 0.5; b.AlwaysOnTop = true; b.Parent = ESPFolder
-                local bg = Instance.new("BillboardGui")
-                bg.Adornee = hrp; bg.Size = UDim2.new(0, 180, 0, 30); bg.StudsOffset = Vector3.new(0, 3, 0); bg.AlwaysOnTop = true; bg.Parent = ESPFolder
-                local tl = Instance.new("TextLabel", bg)
-                tl.Size = UDim2.new(1, 0, 1, 0); tl.BackgroundTransparency = 1; tl.Text = plr.Name
-                tl.TextColor3 = Color3.new(1, 1, 1); tl.TextScaled = true; tl.Font = Enum.Font.GothamBold; tl.TextStrokeTransparency = 0.5
+        local info = plr.Name .. " | UserId: " .. plr.UserId .. " | AccountAge: " .. plr.AccountAge .. "d"
+        if plr.Character then
+            local h = plr.Character:FindFirstChildOfClass("Humanoid")
+            if h then info = info .. " | HP: " .. math.floor(h.Health) .. "/" .. math.floor(h.MaxHealth) .. " | Speed: " .. h.WalkSpeed end
+        end
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, 0, 0, 14)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = "  " .. info
+        lbl.TextColor3 = (plr == LP) and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(200, 200, 220)
+        lbl.TextSize = 10
+        lbl.Font = Enum.Font.Code
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.Parent = dumpBox
+        dumpBox.CanvasSize = UDim2.new(0, 0, 0, dumpBox.CanvasSize.Y.Offset + 14)
+    end
+end)
+
+-- ============================================================
+-- TAB: NETWORK
+-- ============================================================
+addSection(tNetwork, "ESP + Info")
+
+addToggle(tNetwork, "ESP (Caixa + Nome + HP)", function(v)
+    EspOn = v
+    if v then
+        Notify("ESP ON")
+    else
+        for _, o in pairs(ESPFolder:GetChildren()) do o:Destroy() end
+        Notify("ESP OFF")
+    end
+end)
+
+spawn(function()
+    while true do
+        task.wait(1)
+        if EspOn then
+            for _, o in pairs(ESPFolder:GetChildren()) do o:Destroy() end
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr ~= LP and plr.Character then
+                    local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+                    local h = plr.Character:FindFirstChildOfClass("Humanoid")
+                    if hrp then
+                        local b = Instance.new("BoxHandleAdornment")
+                        b.Adornee = hrp; b.Size = Vector3.new(4, 5, 1)
+                        b.Color3 = Color3.fromRGB(255, 50, 50); b.Transparency = 0.4; b.AlwaysOnTop = true; b.Parent = ESPFolder
+                        local bg = Instance.new("BillboardGui")
+                        bg.Adornee = hrp; bg.Size = UDim2.new(0, 200, 0, 50); bg.StudsOffset = Vector3.new(0, 3, 0); bg.AlwaysOnTop = true; bg.Parent = ESPFolder
+                        local info = plr.Name
+                        if h then info = info .. " | HP:" .. math.floor(h.Health) .. "/" .. math.floor(h.MaxHealth) end
+                        local tl = Instance.new("TextLabel", bg)
+                        tl.Size = UDim2.new(1, 0, 1, 0); tl.BackgroundTransparency = 1; tl.Text = info
+                        tl.TextColor3 = Color3.new(1, 1, 1); tl.TextScaled = true; tl.Font = Enum.Font.GothamBold; tl.TextStrokeTransparency = 0.5
+                    end
+                end
             end
         end
     end
-end
-
-addToggle(tE, "ESP (Caixa + Nome)", function(v)
-    EspOn = v
-    if v then UpdateESP(); Notify("ESP On") else for _, o in pairs(ESPFolder:GetChildren()) do o:Destroy() end; Notify("ESP Off") end
-end)
-addButton(tE, "Atualizar ESP", function() if EspOn then UpdateESP() end end)
-Players.PlayerAdded:Connect(function() if EspOn then task.wait(2); UpdateESP() end end)
-Players.PlayerRemoving:Connect(function() if EspOn then task.wait(1); UpdateESP() end end)
-
-addSection(tT, "Player")
-addButton(tT, "Invisibility", function()
-    local ch = GetChar()
-    if ch then
-        local t = ch:FindFirstChild("UpperTorso") or ch:FindFirstChild("Torso")
-        if t then
-            t.Transparency = 1
-            if t:FindFirstChild("roblox") then t.roblox:Destroy() end
-            local p = Instance.new("Part", t); p.Name = "ip"; p.Size = t.Size; p.Transparency = 1; p.CanCollide = false
-            local w = Instance.new("Weld", p); w.Part0 = t; w.Part1 = p
-            Notify("Invis Ativado")
-        end
-    end
 end)
 
-addSection(tT, "Teleport")
-local pNames = {}
-local selP = nil
-for _, p in pairs(Players:GetPlayers()) do if p ~= LP then table.insert(pNames, p.Name) end end
-addDropdown(tT, "Jogador", pNames, function(o) selP = o end)
-addButton(tT, "Teleportar!", function()
-    if selP then
-        local tgt = Players:FindFirstChild(selP)
-        if tgt and tgt.Character then
-            local my = GetHRP(); local th = tgt.Character:FindFirstChild("HumanoidRootPart")
-            if my and th then my.CFrame = th.CFrame * CFrame.new(0, 0, -5); Notify("TP -> " .. selP) end
-        end
-    else Notify("Selecione um jogador!") end
-end)
+addSection(tNetwork, "Anti-AFK")
 
-addSection(tM, "Utilidades")
-addToggle(tM, "Anti-AFK", function(v)
+addToggle(tNetwork, "Anti-AFK", function(v)
     AntiAFKOn = v
     if v then
-        Notify("Anti-AFK On")
         spawn(function()
             while AntiAFKOn do
                 task.wait(30)
@@ -565,10 +808,13 @@ addToggle(tM, "Anti-AFK", function(v)
                 end)
             end
         end)
-    else Notify("Anti-AFK Off") end
+        Notify("Anti-AFK ON")
+    else Notify("Anti-AFK OFF") end
 end)
 
-addButton(tM, "Server Hop", function()
+addSection(tNetwork, "Teleport")
+
+addButton(tNetwork, "Server Hop", function()
     pcall(function()
         local http = game:GetService("HttpService")
         local t = game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
@@ -584,13 +830,20 @@ addButton(tM, "Server Hop", function()
     end)
 end)
 
-addLabel(tM, "Delete = Abrir/Fechar")
+addButton(tNetwork, "Copiar Server ID", function()
+    setclipboard(game.JobId); Notify("Copiado!")
+end)
 
+addLabel(tNetwork, "Delete = Abrir/Fechar")
+
+-- ============================================================
+-- KEYBIND
+-- ============================================================
 UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.Delete then main.Visible = not main.Visible end
 end)
 
-switchTab("Local")
+switchTab("Exploit")
 main.Visible = true
-Notify("Hub carregado! Delete = menu")
+Notify("Security Test Hub v9.0 carregado!")

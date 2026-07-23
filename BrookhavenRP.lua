@@ -48,12 +48,12 @@ local function Cleanup()
     if flyBody then flyBody:Destroy(); flyBody = nil end
     if flyGyro then flyGyro:Destroy(); flyGyro = nil end
     if EspUpdateConn then EspUpdateConn:Disconnect(); EspUpdateConn = nil end
+    if implacavelConn then implacavelConn:Disconnect(); implacavelConn = nil end
+    if intangivelConn then intangivelConn:Disconnect(); intangivelConn = nil end
     for _, obj in pairs(ESPObjects) do
         for _, d in pairs(obj) do pcall(function() d:Remove() end) end
     end
     ESPObjects = {}
-    if implacavelConn then implacavelConn:Disconnect(); implacavelConn = nil end
-    if intangivelConn then intangivelConn:Disconnect(); intangivelConn = nil end
     NoclipOn = false; FlyOn = false; InvisOn = false; EspOn = false
 end
 
@@ -297,22 +297,52 @@ end
 local function LoadMacacamelon()
     Cleanup()
     local frame, content, sec, tog, btn = MakeMenu("Macacamelon Hub", Color3.fromRGB(0, 200, 80))
+
+    local conns = {}
+    local function addConn(c) table.insert(conns, c) return c end
+
     local f1conn
     f1conn = UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe then return end
         if input.KeyCode == Enum.KeyCode.F1 then frame.Visible = not frame.Visible end
     end)
+    table.insert(conns, f1conn)
 
-    sec("DENTRO DO JOGADOR")
-    local clickTPOn = false
-    local clickSelectOn = false
+    local clickTPConn, clickSelectConn, gpConn, eyeDropConn
+    local clickTPOn, clickSelectOn = false, false
     local selectedTarget = nil
     local insideConn = nil
+    local followConn = nil
+    local followCycling = false
+    local followTarget = nil
+    local followTimer = 0
+    local bodyTPOn, bodyTPConn, bodyTarget = false, nil, nil
+    local cabecaConn, cabecaAlvo = nil, nil
+    local implacavelOn, intangivelOn = false, false
+    local cc = Color3.fromRGB
 
+    sec("ESP (Drawing)")
+    tog("ESP (Caixa + Nome + Tracer)", function(v)
+        EspOn = v
+        if not v then ClearESP() end
+        if v then
+            if EspUpdateConn then EspUpdateConn:Disconnect() end
+            EspUpdateConn = RunService.RenderStepped:Connect(function()
+                if EspOn then UpdateESP() end
+            end)
+        end
+        Notify(v and "ESP ON" or "ESP OFF")
+    end)
+    btn("Cor - Vermelho", function() espColor = Color3.new(1, 0, 0); Notify("Cor = Vermelho") end)
+    btn("Cor - Verde", function() espColor = Color3.new(0, 1, 0); Notify("Cor = Verde") end)
+    btn("Cor - Azul", function() espColor = Color3.new(0, 0.5, 1); Notify("Cor = Azul") end)
+
+    sec("DENTRO DO JOGADOR")
     tog("Click p/ TP DENTRO do perto", function(v)
         clickTPOn = v
+        if clickTPConn then clickTPConn:Disconnect(); clickTPConn = nil end
         if v then
-            Mouse.Button1Down:Connect(function()
+            clickTPConn = addConn(Mouse.Button1Down:Connect(function()
                 if not clickTPOn then return end
                 local closest, closestDist = nil, math.huge
                 local myPos = GetHRP() and GetHRP().Position
@@ -333,15 +363,16 @@ local function LoadMacacamelon()
                         Notify("Dentro de " .. closest.Parent.Name)
                     end
                 end
-            end)
+            end))
             Notify("Click TP DENTRO ON")
         else Notify("Click TP OFF") end
     end)
 
     tog("Clicar p/ selecionar alvo", function(v)
         clickSelectOn = v
+        if clickSelectConn then clickSelectConn:Disconnect(); clickSelectConn = nil end
         if v then
-            Mouse.Button1Down:Connect(function()
+            clickSelectConn = addConn(Mouse.Button1Down:Connect(function()
                 if not clickSelectOn then return end
                 local closest, closestDist = nil, math.huge
                 local myPos = GetHRP() and GetHRP().Position
@@ -359,7 +390,7 @@ local function LoadMacacamelon()
                     selectedTarget = closest
                     Notify("Alvo: " .. selectedTarget.Parent.Name)
                 end
-            end)
+            end))
             Notify("Click select ON")
         else selectedTarget = nil; Notify("Select OFF") end
     end)
@@ -367,16 +398,15 @@ local function LoadMacacamelon()
     btn("Seguir DENTRO do selecionado", function()
         if not selectedTarget then Notify("Selecione um alvo primeiro!"); return end
         if insideConn then insideConn:Disconnect(); insideConn = nil end
-        insideConn = RunService.RenderStepped:Connect(function()
+        insideConn = addConn(RunService.RenderStepped:Connect(function()
             if not selectedTarget or not selectedTarget.Parent then
-                Notify("Alvo perdido"); if insideConn then insideConn:Disconnect(); insideConn = nil end
+                Notify("Alvo perdido")
+                if insideConn then insideConn:Disconnect(); insideConn = nil end
                 return
             end
             local myHRP = GetHRP()
-            if myHRP and selectedTarget then
-                myHRP.CFrame = selectedTarget.CFrame
-            end
-        end)
+            if myHRP and selectedTarget then myHRP.CFrame = selectedTarget.CFrame end
+        end))
         Notify("Dentro de " .. selectedTarget.Parent.Name)
     end)
 
@@ -385,59 +415,11 @@ local function LoadMacacamelon()
         Notify("Parou")
     end)
 
-    sec("MOVIMENTO")
-    tog("Atravessar Paredes (Noclip)", function(v)
-        NoclipOn = v
-        if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
-        if v then
-            noclipConn = RunService.Stepped:Connect(function()
-                local ch = GetChar()
-                if ch then for _, p in pairs(ch:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end
-            end)
-            Notify("Noclip ON")
-        else Notify("Noclip OFF") end
-    end)
-
-    tog("Voar (WASD + Space/Shift)", function(v)
-        FlyOn = v
-        if flyConn then flyConn:Disconnect(); flyConn = nil end
-        if flyBody then flyBody:Destroy(); flyBody = nil end
-        if flyGyro then flyGyro:Destroy(); flyGyro = nil end
-        if v then
-            local hrp = GetHRP()
-            if hrp then
-                flyGyro = Instance.new("BodyGyro", hrp)
-                flyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge); flyGyro.P = 9000; flyGyro.D = 500
-                flyBody = Instance.new("BodyVelocity", hrp)
-                flyBody.MaxForce = Vector3.new(math.huge, math.huge, math.huge); flyBody.Velocity = Vector3.zero
-                flyConn = RunService.RenderStepped:Connect(function()
-                    local cam = workspace.CurrentCamera
-                    local d = Vector3.zero
-                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then d = d + cam.CFrame.LookVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then d = d - cam.CFrame.LookVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then d = d - cam.CFrame.RightVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then d = d + cam.CFrame.RightVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then d = d + Vector3.new(0, 1, 0) end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then d = d - Vector3.new(0, 1, 0) end
-                    if flyBody and flyGyro then flyBody.Velocity = d.Unit * 80; flyGyro.CFrame = cam.CFrame end
-                end)
-                Notify("Fly ON")
-            end
-        else Notify("Fly OFF") end
-    end)
-
-    sec("DENTRO DO JOGADOR")
-    local followConn = nil
-    local followTarget = nil
-    local followTimer = 0
-    local followCycling = false
-    local insideConn = nil
-
-    tog("Seguir DENTRO do perto", function(v)
+    tog("Seguir DENTRO do perto (auto)", function(v)
         if followConn then followConn:Disconnect(); followConn = nil end
         followTarget = nil
         if v then
-            followConn = RunService.RenderStepped:Connect(function()
+            followConn = addConn(RunService.RenderStepped:Connect(function()
                 if not v then return end
                 local closest, closestDist = nil, math.huge
                 local myPos = GetHRP() and GetHRP().Position
@@ -454,11 +436,9 @@ local function LoadMacacamelon()
                 if closest then
                     followTarget = closest
                     local myHRP = GetHRP()
-                    if myHRP and followTarget then
-                        myHRP.CFrame = followTarget.CFrame
-                    end
+                    if myHRP and followTarget then myHRP.CFrame = followTarget.CFrame end
                 end
-            end)
+            end))
             Notify("Seguindo DENTRO")
         else Notify("Parou") end
     end)
@@ -468,15 +448,13 @@ local function LoadMacacamelon()
         followTimer = 0
         if v then
             if followConn then followConn:Disconnect(); followConn = nil end
-            followConn = RunService.RenderStepped:Connect(function()
+            followConn = addConn(RunService.RenderStepped:Connect(function()
                 if not followCycling then return end
                 followTimer = followTimer + task.wait()
                 if followTimer < 3 then
                     if not followTarget then return end
                     local myHRP = GetHRP()
-                    if myHRP and followTarget then
-                        myHRP.CFrame = followTarget.CFrame
-                    end
+                    if myHRP and followTarget then myHRP.CFrame = followTarget.CFrame end
                     return
                 end
                 followTimer = 0
@@ -505,7 +483,7 @@ local function LoadMacacamelon()
                     local myHRP = GetHRP()
                     if myHRP then myHRP.CFrame = followTarget.CFrame end
                 end
-            end)
+            end))
             Notify("Dentro - troca 3s")
         else Notify("Parou") end
     end)
@@ -523,7 +501,7 @@ local function LoadMacacamelon()
         local tHRP = target.Character:FindFirstChild("HumanoidRootPart")
         followTarget = tHRP
         local randTimer = 0
-        followConn = RunService.RenderStepped:Connect(function()
+        followConn = addConn(RunService.RenderStepped:Connect(function()
             randTimer = randTimer + task.wait()
             if randTimer >= 3 then
                 randTimer = 0
@@ -540,18 +518,12 @@ local function LoadMacacamelon()
                 end
             end
             local myHRP = GetHRP()
-            if myHRP and followTarget then
-                myHRP.CFrame = followTarget.CFrame
-            end
-        end)
+            if myHRP and followTarget then myHRP.CFrame = followTarget.CFrame end
+        end))
         Notify("Aleatorio DENTRO: " .. target.Name)
     end)
 
     sec("BODY TP (1s)")
-    local bodyTPOn = false
-    local bodyTPConn = nil
-    local bodyTarget = nil
-
     btn("Selecionar perto (alvo body TP)", function()
         local closest, closestDist = nil, math.huge
         local myPos = GetHRP() and GetHRP().Position
@@ -565,9 +537,7 @@ local function LoadMacacamelon()
                 end
             end
         end
-        if closest then
-            bodyTarget = closest
-            Notify("Body TP alvo: " .. closest.Name)
+        if closest then bodyTarget = closest; Notify("Body TP alvo: " .. closest.Name)
         else Notify("Nenhum perto") end
     end)
 
@@ -575,8 +545,8 @@ local function LoadMacacamelon()
         bodyTPOn = v
         if bodyTPConn then bodyTPConn:Disconnect(); bodyTPConn = nil end
         if v then
-            if not bodyTarget then Notify("Selecione alvo primeiro!"); return end
-            bodyTPConn = RunService.RenderStepped:Connect(function()
+            if not bodyTarget then Notify("Selecione alvo primeiro!"); bodyTPOn = false; return end
+            bodyTPConn = addConn(RunService.RenderStepped:Connect(function()
                 if not bodyTPOn or not bodyTarget or not bodyTarget.Character then
                     if bodyTPOn then Notify("Alvo perdido") end
                     return
@@ -587,20 +557,14 @@ local function LoadMacacamelon()
                 for _, p in pairs(bodyTarget.Character:GetDescendants()) do
                     if p:IsA("BasePart") then table.insert(parts, p) end
                 end
-                if #parts > 0 then
-                    local randPart = parts[math.random(1, #parts)]
-                    myHRP.CFrame = randPart.CFrame
-                end
+                if #parts > 0 then myHRP.CFrame = parts[math.random(1, #parts)].CFrame end
                 task.wait(1)
-            end)
+            end))
             Notify("Body TP ON - 1s")
         else Notify("Body TP OFF") end
     end)
 
     sec("CABECA (click)")
-    local cabecaConn = nil
-    local cabecaAlvo = nil
-
     btn("Selecionar perto (cabeÃ§a)", function()
         local closest, closestDist = nil, math.huge
         local myPos = GetHRP() and GetHRP().Position
@@ -614,9 +578,7 @@ local function LoadMacacamelon()
                 end
             end
         end
-        if closest then
-            cabecaAlvo = closest
-            Notify("Alvo: " .. closest.Name)
+        if closest then cabecaAlvo = closest; Notify("Alvo: " .. closest.Name)
         else Notify("Nenhum perto") end
     end)
 
@@ -624,31 +586,26 @@ local function LoadMacacamelon()
         if cabecaConn then cabecaConn:Disconnect(); cabecaConn = nil end
         if v then
             if not cabecaAlvo then Notify("Selecione alvo!"); return end
-            cabecaConn = RunService.RenderStepped:Connect(function()
+            cabecaConn = addConn(RunService.RenderStepped:Connect(function()
                 if not v or not cabecaAlvo or not cabecaAlvo.Character then
                     if v then Notify("Alvo perdido") end
                     return
                 end
                 local head = cabecaAlvo.Character:FindFirstChild("Head")
                 local myHRP = GetHRP()
-                if myHRP and head then
-                    myHRP.CFrame = CFrame.new(head.Position + Vector3.new(0, 0.5, 0))
-                end
-            end)
+                if myHRP and head then myHRP.CFrame = CFrame.new(head.Position + Vector3.new(0, 0.5, 0)) end
+            end))
             Notify("Na CABECA de " .. cabecaAlvo.Name)
         else Notify("Parou") end
     end)
 
     sec("MODO IMPLACAVEL")
-    local implacavelOn = false
-    local intangivelOn = false
-
     tog("Intangivel (leva dano zero)", function(v)
         intangivelOn = v
         if intangivelConn then intangivelConn:Disconnect(); intangivelConn = nil end
         if v then
-            intangivelConn = RunService.Heartbeat:Connect(function()
-                if not intangivelOn then intangivelConn:Disconnect(); return end
+            intangivelConn = addConn(RunService.Heartbeat:Connect(function()
+                if not intangivelOn then return end
                 local h = GetHum()
                 if h then
                     h.Health = h.MaxHealth
@@ -658,16 +615,10 @@ local function LoadMacacamelon()
                     h.BreakJointsOnDeath = false
                 end
                 local ch = GetChar()
-                if ch then
-                    for _, p in pairs(ch:GetDescendants()) do
-                        if p:IsA("BasePart") then p.CanCollide = false end
-                    end
-                end
-            end)
+                if ch then for _, p in pairs(ch:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end
+            end))
             Notify("Intangivel ON - nao leva dano")
-        else
-            Notify("Intangivel OFF")
-        end
+        else Notify("Intangivel OFF") end
     end)
 
     tog("Modo Implacavel (TP + seguir)", function(v)
@@ -677,18 +628,18 @@ local function LoadMacacamelon()
             if not intangivelOn then
                 intangivelOn = true
                 if intangivelConn then intangivelConn:Disconnect(); intangivelConn = nil end
-                intangivelConn = RunService.Heartbeat:Connect(function()
+                intangivelConn = addConn(RunService.Heartbeat:Connect(function()
                     if not intangivelOn then return end
                     local h = GetHum()
                     if h then h.Health = h.MaxHealth; h.BreakJointsOnDeath = false end
                     local ch = GetChar()
                     if ch then for _, p in pairs(ch:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end
-                end)
+                end))
             end
             local targets = {}
             local targetIdx = 1
             local teleportTimer = 0
-            implacavelConn = RunService.RenderStepped:Connect(function()
+            implacavelConn = addConn(RunService.RenderStepped:Connect(function()
                 if not implacavelOn then return end
                 teleportTimer = teleportTimer + task.wait()
                 targets = {}
@@ -697,9 +648,7 @@ local function LoadMacacamelon()
                 for _, plr in pairs(Players:GetPlayers()) do
                     if plr ~= LP and plr.Character then
                         local r = plr.Character:FindFirstChild("HumanoidRootPart")
-                        if r then
-                            table.insert(targets, { plr = plr, hrp = r, dist = (r.Position - myPos).Magnitude })
-                        end
+                        if r then table.insert(targets, { plr = plr, hrp = r, dist = (r.Position - myPos).Magnitude }) end
                     end
                 end
                 table.sort(targets, function(a, b) return a.dist < b.dist end)
@@ -715,12 +664,11 @@ local function LoadMacacamelon()
                     if myHRP and tHRP then
                         local behind = tHRP.CFrame.LookVector * -1
                         local offset = Vector3.new(0, 0, 0)
-                        local t = teleportTimer
-                        if t < 0.2 then
+                        if teleportTimer < 0.2 then
                             offset = behind * 8 + Vector3.new(0, 3, 0)
-                        elseif t < 0.4 then
+                        elseif teleportTimer < 0.4 then
                             offset = Vector3.new(4, 1, 4)
-                        elseif t < 0.6 then
+                        elseif teleportTimer < 0.6 then
                             offset = Vector3.new(-4, 2, -4)
                         else
                             offset = behind * 5 + Vector3.new(2, 1, -2)
@@ -732,22 +680,57 @@ local function LoadMacacamelon()
                             local moveDir = (targetPos - myHRP.Position).Unit * math.min((targetPos - myHRP.Position).Magnitude * 0.3, 30)
                             myHRP.CFrame = myHRP.CFrame + moveDir
                         end
-                        local cam = workspace.CurrentCamera
-                        if cam then
-                            local dir = (tHRP.Position - myHRP.Position).Unit
-                            myHRP.CFrame = CFrame.lookAt(myHRP.Position, myHRP.Position + dir * 100)
-                        end
+                        local dir = (tHRP.Position - myHRP.Position).Unit
+                        myHRP.CFrame = CFrame.lookAt(myHRP.Position, myHRP.Position + dir * 100)
                     end
                 end
-            end)
-            Notify("Modo Implacavel ON - teleportando entre jogadores")
-        else
-            Notify("Modo Implacavel OFF")
-        end
+            end))
+            Notify("Modo Implacavel ON")
+        else Notify("Modo Implacavel OFF") end
+    end)
+
+    sec("MOVIMENTO")
+    tog("Atravessar Paredes (Noclip)", function(v)
+        NoclipOn = v
+        if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
+        if v then
+            noclipConn = addConn(RunService.Stepped:Connect(function()
+                local ch = GetChar()
+                if ch then for _, p in pairs(ch:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end
+            end))
+            Notify("Noclip ON")
+        else Notify("Noclip OFF") end
+    end)
+
+    tog("Voar (WASD + Space/Shift)", function(v)
+        FlyOn = v
+        if flyConn then flyConn:Disconnect(); flyConn = nil end
+        if flyBody then flyBody:Destroy(); flyBody = nil end
+        if flyGyro then flyGyro:Destroy(); flyGyro = nil end
+        if v then
+            local hrp = GetHRP()
+            if hrp then
+                flyGyro = Instance.new("BodyGyro", hrp)
+                flyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge); flyGyro.P = 9000; flyGyro.D = 500
+                flyBody = Instance.new("BodyVelocity", hrp)
+                flyBody.MaxForce = Vector3.new(math.huge, math.huge, math.huge); flyBody.Velocity = Vector3.zero
+                flyConn = addConn(RunService.RenderStepped:Connect(function()
+                    local cam = workspace.CurrentCamera
+                    local d = Vector3.zero
+                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then d = d + cam.CFrame.LookVector end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then d = d - cam.CFrame.LookVector end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then d = d - cam.CFrame.RightVector end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then d = d + cam.CFrame.RightVector end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then d = d + Vector3.new(0, 1, 0) end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then d = d - Vector3.new(0, 1, 0) end
+                    if flyBody and flyGyro then flyBody.Velocity = d.Unit * 80; flyGyro.CFrame = cam.CFrame end
+                end))
+                Notify("Fly ON")
+            end
+        else Notify("Fly OFF") end
     end)
 
     sec("PINTAR")
-    local cc = Color3.fromRGB
     btn("Pintar Inteiro - VERMELHO", function() PaintChar(cc(255, 0, 0), true) end)
     btn("Pintar Inteiro - AZUL", function() PaintChar(cc(0, 100, 255), true) end)
     btn("Pintar Inteiro - VERDE", function() PaintChar(cc(0, 200, 0), true) end)
@@ -758,16 +741,14 @@ local function LoadMacacamelon()
     btn("Pintar Inteiro - LARANJA", function() PaintChar(cc(255, 120, 0), true) end)
 
     sec("PINTAR UMA PARTE (G)")
-    local gpConn
-    if gpConn then gpConn:Disconnect() end
-    gpConn = UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpConn then gpConn:Disconnect(); gpConn = nil end
+    gpConn = addConn(UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe then return end
         if gameMode ~= "macacamelon" then return end
-        if not frame.Visible then return end
         if input.KeyCode == Enum.KeyCode.G then
             PaintSinglePart(cc(255, 255, 0))
         end
-    end)
+    end))
     local partIdx = Instance.new("TextLabel")
     partIdx.Size = UDim2.new(1, 0, 0, 18)
     partIdx.BackgroundTransparency = 1
@@ -779,17 +760,14 @@ local function LoadMacacamelon()
     partIdx.Parent = content
 
     sec("COR DO CENARIO")
-    local eyeDropperOn = false
     tog("Conta-gotas (copiar cor)", function(v)
-        eyeDropperOn = v
+        if eyeDropConn then eyeDropConn:Disconnect(); eyeDropConn = nil end
         if v then
             Notify("Clique em algo para copiar a cor")
-            local con
-            con = Mouse.Button1Down:Connect(function()
-                if not eyeDropperOn then con:Disconnect(); return end
+            eyeDropConn = addConn(Mouse.Button1Down:Connect(function()
                 local c = GetSceneryColor()
                 if c then Notify("Cor copiada!") end
-            end)
+            end))
         end
     end)
 
@@ -804,15 +782,13 @@ local function LoadMacacamelon()
                 if p:IsA("ForceField") then p.Visible = not v end
             end
             local hum = ch:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum.DisplayDistanceType = v and Enum.HumanoidDisplayDistanceType.None or Enum.HumanoidDisplayDistanceType.Default
-            end
+            if hum then hum.DisplayDistanceType = v and Enum.HumanoidDisplayDistanceType.None or Enum.HumanoidDisplayDistanceType.Default end
         end
         Notify(v and "Invisivel" or "Visivel")
     end)
 
     frame.Visible = true
-    Notify("Macacamelon Hub! F1 = menu | G = pintar parte")
+    Notify("Macacamelon Hub! F1 = menu | F2 = liberar mouse | G = pintar parte")
 end
 
 -- ============================================================

@@ -370,58 +370,77 @@ local function LoadMacacamelon()
         else Notify("Click TP OFF") end
     end)
 
-    sec("GRUDADO")
-    local stickConn = nil
-    local stuckPart = nil
-    local weldObj = nil
-    tog("Ficar Grudado no Lugar", function(v)
-        if weldObj then weldObj:Destroy(); weldObj = nil end
-        if stickConn then stickConn:Disconnect(); stickConn = nil end
-        GrudadoOn = v
+    sec("GRUDAR EM JOGADOR")
+    local stickWeld = nil
+    local stickTarget = nil
+    local stickCycle = false
+    local stickCycleConn = nil
+
+    tog("Grudar (weld) no mais proximo", function(v)
+        if stickWeld then stickWeld:Destroy(); stickWeld = nil end
+        stickTarget = nil
         if v then
-            local hrp = GetHRP()
-            if hrp then
-                local pos = hrp.Position
-                local base = Instance.new("Part", workspace)
-                base.Name = "GrudeBase"; base.Size = Vector3.new(1, 1, 1)
-                base.Anchored = true; base.Transparency = 1; base.CanCollide = false
-                base.CFrame = CFrame.new(pos)
-                weldObj = Instance.new("Weld", hrp)
-                weldObj.Part0 = hrp; weldObj.Part1 = base
-                Notify("Grudado! Desative para soltar")
+            local myHRP = GetHRP()
+            if not myHRP then Notify("Sem HRP"); return end
+            local closest, closestDist = nil, math.huge
+            local myPos = myHRP.Position
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr ~= LP and plr.Character then
+                    local r = plr.Character:FindFirstChild("HumanoidRootPart")
+                    if r then
+                        local d = (r.Position - myPos).Magnitude
+                        if d < closestDist then closestDist = d; closest = r end
+                    end
+                end
             end
-        else Notify("Solto!") end
+            if closest then
+                stickTarget = closest
+                stickWeld = Instance.new("Weld", myHRP)
+                stickWeld.Part0 = myHRP
+                stickWeld.Part1 = closest
+                stickWeld.C0 = CFrame.new(0, 1, -3)
+                Notify("Grudado em " .. stickTarget.Parent.Name)
+            else
+                Notify("Nenhum jogador perto")
+            end
+        else
+            if stickCycleConn then stickCycleConn:Disconnect(); stickCycleConn = nil end
+            Notify("Solto") end
     end)
 
-    tog("Grudar em Jogador (siga ele)", function(v)
-        if stickConn then stickConn:Disconnect(); stickConn = nil end
+    tog("Trocar alvo automaticamente", function(v)
+        stickCycle = v
+        if stickCycleConn then stickCycleConn:Disconnect(); stickCycleConn = nil end
         if v then
-            local lastTarget = nil
-            stickConn = RunService.RenderStepped:Connect(function()
-                if not v then stickConn:Disconnect(); return end
-                local closest, closestDist = nil, math.huge
+            stickCycleConn = RunService.RenderStepped:Connect(function()
+                if not stickCycle then stickCycleConn:Disconnect(); return end
+                if not stickWeld then return end
+                local targets = {}
                 local myPos = GetHRP() and GetHRP().Position
                 if not myPos then return end
                 for _, plr in pairs(Players:GetPlayers()) do
                     if plr ~= LP and plr.Character then
                         local r = plr.Character:FindFirstChild("HumanoidRootPart")
-                        if r then
-                            local d = (r.Position - myPos).Magnitude
-                            if d < closestDist then closestDist = d; closest = plr end
+                        if r then table.insert(targets, {hrp = r, dist = (r.Position - myPos).Magnitude}) end
+                    end
+                end
+                table.sort(targets, function(a, b) return a.dist < b.dist end)
+                if #targets >= 2 then
+                    for i = 1, #targets do
+                        if targets[i].hrp ~= stickTarget then
+                            local oldTarget = stickTarget
+                            stickTarget = targets[i].hrp
+                            stickWeld.Part1 = stickTarget
+                            Notify("Novo alvo: " .. stickTarget.Parent.Name)
+                            task.wait(2.5)
+                            break
                         end
                     end
                 end
-                if closest then
-                    local myHRP = GetHRP()
-                    local tHRP = closest.Character:FindFirstChild("HumanoidRootPart")
-                    if myHRP and tHRP then
-                        lastTarget = closest
-                        myHRP.CFrame = CFrame.new(tHRP.Position - tHRP.CFrame.LookVector * 3 + Vector3.new(0, 1, 0))
-                    end
-                end
+                task.wait(1)
             end)
-            Notify("Grudando no jogador mais perto")
-        else Notify("Parou de grudar") end
+            Notify("Troca automatica ON")
+        else Notify("Troca OFF") end
     end)
 
     sec("MODO IMPLACAVEL")

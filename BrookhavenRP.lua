@@ -154,7 +154,7 @@ local function MakeMenu(title, color)
 
     local ft = Instance.new("TextLabel")
     ft.Size = UDim2.new(1, 0, 0, 12); ft.Position = UDim2.new(0, 0, 1, -14)
-    ft.BackgroundTransparency = 1; ft.Text = "F1 = Abrir/Fechar"
+    ft.BackgroundTransparency = 1;     ft.Text = "F1 = Abrir/Fechar | F2 = Liberar mouse"
     ft.TextColor3 = Color3.fromRGB(60, 60, 90); ft.TextSize = 9; ft.Font = Enum.Font.Gotham; ft.Parent = frame
 
     local function sec(txt)
@@ -832,6 +832,65 @@ local function LoadMacacamelon()
         Notify(v and "Invisivel" or "Visivel")
     end)
 
+    sec("FECHAR MENU")
+    btn("FECHAR e limpar tudo", function()
+        local confirm = Instance.new("Frame")
+        confirm.Size = UDim2.new(0, 260, 0, 140)
+        confirm.Position = UDim2.new(0.5, -130, 0.5, -70)
+        confirm.BackgroundColor3 = Color3.fromRGB(10, 30, 10)
+        confirm.BorderSizePixel = 0
+        confirm.Parent = gui
+        confirm.ZIndex = 999
+        Instance.new("UICorner", confirm).CornerRadius = UDim.new(0, 10)
+        Instance.new("UIStroke", confirm).Color = Color3.fromRGB(60, 200, 80)
+
+        local txt = Instance.new("TextLabel")
+        txt.Size = UDim2.new(1, -20, 0, 40)
+        txt.Position = UDim2.new(0, 10, 0, 15)
+        txt.BackgroundTransparency = 1
+        txt.Text = "Tem certeza?\nTodos os comandos serao parados."
+        txt.TextColor3 = Color3.new(1, 1, 1)
+        txt.TextSize = 13
+        txt.Font = Enum.Font.GothamBold
+        txt.Parent = confirm
+
+        local yesBtn = Instance.new("TextButton")
+        yesBtn.Size = UDim2.new(0.45, 0, 0, 32)
+        yesBtn.Position = UDim2.new(0.05, 5, 1, -45)
+        yesBtn.BackgroundColor3 = Color3.fromRGB(30, 180, 60)
+        yesBtn.Text = "SIM, FECHAR"
+        yesBtn.TextColor3 = Color3.new(1, 1, 1)
+        yesBtn.TextSize = 12
+        yesBtn.Font = Enum.Font.GothamBold
+        yesBtn.Parent = confirm
+        Instance.new("UICorner", yesBtn).CornerRadius = UDim.new(0, 6)
+
+        local noBtn = Instance.new("TextButton")
+        noBtn.Size = UDim2.new(0.45, 0, 0, 32)
+        noBtn.Position = UDim2.new(0.5, 0, 1, -45)
+        noBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+        noBtn.Text = "CANCELAR"
+        noBtn.TextColor3 = Color3.new(1, 1, 1)
+        noBtn.TextSize = 12
+        noBtn.Font = Enum.Font.GothamBold
+        noBtn.Parent = confirm
+        Instance.new("UICorner", noBtn).CornerRadius = UDim.new(0, 6)
+
+        yesBtn.MouseButton1Click:Connect(function()
+            confirm:Destroy()
+            for _, c in pairs(conns) do pcall(function() c:Disconnect() end) end
+            conns = {}
+            Cleanup()
+            frame.Visible = false
+            gameMode = nil
+            selector.Visible = true
+            Notify("Tudo fechado!")
+        end)
+        noBtn.MouseButton1Click:Connect(function()
+            confirm:Destroy()
+        end)
+    end)
+
     frame.Visible = true
     Notify("Macacamelon Hub! F1 = menu | F2 = liberar mouse | G = pintar parte")
 end
@@ -842,11 +901,15 @@ end
 local function LoadBrookhaven()
     Cleanup()
     local frame, content, sec, tog, btn = MakeMenu("Brookhaven Security Hub", Color3.fromRGB(255, 50, 50))
+    local brookConns = {}
+    local function addBC(c) table.insert(brookConns, c) return c end
+
     local f1conn
     f1conn = UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe then return end
         if input.KeyCode == Enum.KeyCode.F1 then frame.Visible = not frame.Visible end
     end)
+    table.insert(brookConns, f1conn)
 
     sec("ESP (Drawing 2D)")
     tog("ESP (Caixa + Nome)", function(v)
@@ -869,10 +932,10 @@ local function LoadBrookhaven()
         NoclipOn = v
         if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
         if v then
-            noclipConn = RunService.Stepped:Connect(function()
+            noclipConn = addBC(RunService.Stepped:Connect(function()
                 local ch = GetChar()
                 if ch then for _, p in pairs(ch:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end
-            end)
+            end))
             Notify("Noclip ON")
         else Notify("Noclip OFF") end
     end)
@@ -886,7 +949,7 @@ local function LoadBrookhaven()
             if hrp then
                 flyGyro = Instance.new("BodyGyro", hrp); flyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge); flyGyro.P = 9000; flyGyro.D = 500
                 flyBody = Instance.new("BodyVelocity", hrp); flyBody.MaxForce = Vector3.new(math.huge, math.huge, math.huge); flyBody.Velocity = Vector3.zero
-                flyConn = RunService.RenderStepped:Connect(function()
+                flyConn = addBC(RunService.RenderStepped:Connect(function()
                     local cam = workspace.CurrentCamera
                     local d = Vector3.zero
                     if UserInputService:IsKeyDown(Enum.KeyCode.W) then d = d + cam.CFrame.LookVector end
@@ -896,38 +959,225 @@ local function LoadBrookhaven()
                     if UserInputService:IsKeyDown(Enum.KeyCode.Space) then d = d + Vector3.new(0, 1, 0) end
                     if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then d = d - Vector3.new(0, 1, 0) end
                     if flyBody and flyGyro then flyBody.Velocity = d.Unit * 80; flyGyro.CFrame = cam.CFrame end
-                end)
+                end))
                 Notify("Fly ON")
             end
         else Notify("Fly OFF") end
     end)
+    tog("Super Rapido (Speed)", function(v)
+        local h = GetHum()
+        if h then
+            h.WalkSpeed = v and 80 or 16
+            Notify(v and "Speed ON" or "Speed OFF")
+        end
+    end)
+
+    sec("SEGUIR JOGADOR")
+    local followConn2 = nil
+    local followTarget2 = nil
+    local selectedPlr = nil
+
+    btn("Selecionar perto (alvo)", function()
+        local closest, closestDist = nil, math.huge
+        local myPos = GetHRP() and GetHRP().Position
+        if not myPos then return end
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LP and plr.Character then
+                local r = plr.Character:FindFirstChild("HumanoidRootPart")
+                if r then
+                    local d = (r.Position - myPos).Magnitude
+                    if d < closestDist then closestDist = d; closest = plr end
+                end
+            end
+        end
+        if closest then selectedPlr = closest; Notify("Alvo: " .. closest.Name)
+        else Notify("Nenhum perto") end
+    end)
+
+    tog("Seguir jogador (auto perto)", function(v)
+        if followConn2 then followConn2:Disconnect(); followConn2 = nil end
+        if v then
+            followConn2 = addBC(RunService.RenderStepped:Connect(function()
+                local closest, closestDist = nil, math.huge
+                local myPos = GetHRP() and GetHRP().Position
+                if not myPos then return end
+                for _, plr in pairs(Players:GetPlayers()) do
+                    if plr ~= LP and plr.Character then
+                        local r = plr.Character:FindFirstChild("HumanoidRootPart")
+                        if r then
+                            local d = (r.Position - myPos).Magnitude
+                            if d < closestDist then closestDist = d; closest = r end
+                        end
+                    end
+                end
+                if closest then
+                    followTarget2 = closest
+                    local myHRP = GetHRP()
+                    if myHRP then myHRP.CFrame = closest.CFrame end
+                end
+            end))
+            Notify("Seguindo perto")
+        else Notify("Parou") end
+    end)
+
+    tog("Seguir dentro (CFrame)", function(v)
+        if followConn2 then followConn2:Disconnect(); followConn2 = nil end
+        if v then
+            if not selectedPlr then Notify("Selecione alvo!"); return end
+            followConn2 = addBC(RunService.RenderStepped:Connect(function()
+                if not selectedPlr or not selectedPlr.Character then Notify("Alvo perdido"); return end
+                local myHRP = GetHRP()
+                local tHRP = selectedPlr.Character:FindFirstChild("HumanoidRootPart")
+                if myHRP and tHRP then myHRP.CFrame = tHRP.CFrame end
+            end))
+            Notify("Dentro de " .. selectedPlr.Name)
+        else Notify("Parou") end
+    end)
+
+    btn("Parar de seguir", function()
+        if followConn2 then followConn2:Disconnect(); followConn2 = nil end
+        Notify("Parou")
+    end)
 
     sec("PROTECAO")
+    local godConn = nil
+    local godOn = false
     tog("God Mode", function(v)
+        godOn = v
+        if godConn then godConn:Disconnect(); godConn = nil end
         if v then
-            spawn(function()
-                while v do
-                    task.wait(0.1)
-                    local h = GetHum(); if h then h.Health = h.MaxHealth end
-                end
-            end)
+            godConn = addBC(RunService.Heartbeat:Connect(function()
+                if not godOn then return end
+                local h = GetHum(); if h then h.Health = h.MaxHealth end
+            end))
             Notify("God ON")
         else Notify("God OFF") end
     end)
+    local afkConn = nil
+    local afkOn = false
     tog("Anti-AFK", function(v)
+        afkOn = v
+        if afkConn then afkConn:Disconnect(); afkConn = nil end
         if v then
-            spawn(function()
-                while v do
-                    task.wait(30)
-                    pcall(function()
-                        local vu = game:GetService("VirtualUser")
-                        vu:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-                        task.wait(0.1); vu:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-                    end)
-                end
-            end)
+            afkConn = addBC(RunService.Heartbeat:Connect(function()
+                if not afkOn then return end
+                pcall(function()
+                    local vu = game:GetService("VirtualUser")
+                    vu:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                    task.wait(0.1)
+                    vu:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                end)
+            end))
             Notify("Anti-AFK ON")
         else Notify("Anti-AFK OFF") end
+    end)
+    tog("Intocavel (1 click)", function(v)
+        intangivelOn = v
+        if intangivelConn then intangivelConn:Disconnect(); intangivelConn = nil end
+        if v then
+            intangivelConn = addBC(RunService.Heartbeat:Connect(function()
+                if not intangivelOn then return end
+                local h = GetHum()
+                if h then
+                    h.Health = h.MaxHealth
+                    h:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+                    h:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+                    h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+                    h.BreakJointsOnDeath = false
+                end
+                local ch = GetChar()
+                if ch then for _, p in pairs(ch:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end
+            end))
+            Notify("Intocavel ON")
+        else Notify("Intocavel OFF") end
+    end)
+
+    sec("INVISIBILIDADE")
+    tog("Ficar Invisivel", function(v)
+        InvisOn = v
+        local ch = GetChar()
+        if ch then
+            for _, p in pairs(ch:GetDescendants()) do
+                if p:IsA("BasePart") then p.Transparency = v and 1 or 0; p.CanCollide = not v end
+                if p:IsA("Decal") then p.Transparency = v and 1 or 0 end
+                if p:IsA("ForceField") then p.Visible = not v end
+            end
+            local hum = ch:FindFirstChildOfClass("Humanoid")
+            if hum then hum.DisplayDistanceType = v and Enum.HumanoidDisplayDistanceType.None or Enum.HumanoidDisplayDistanceType.Default end
+        end
+        Notify(v and "Invisivel" or "Visivel")
+    end)
+
+    sec("PUXAR OBJETOS")
+    local pullConn = nil
+    local pulling = false
+    tog("Puxar com Mouse (segurar)", function(v)
+        pulling = v
+        if pullConn then pullConn:Disconnect(); pullConn = nil end
+        if v then
+            Notify("Clique e segure em qualquer objeto")
+            pullConn = addBC(Mouse.Button1Down:Connect(function()
+                if not pulling then return end
+                local result = RaycastFromMouse()
+                if not result or not result.Instance then return end
+                local target = result.Instance
+                if target:IsA("BasePart") and not target:IsDescendantOf(LP.Character or game) then
+                    local bp = Instance.new("BodyPosition")
+                    bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                    bp.D = 400; bp.P = 10000
+                    bp.Position = target.Position
+                    bp.Parent = target
+                    local moveConn
+                    moveConn = addBC(RunService.RenderStepped:Connect(function()
+                        if not pulling or not bp or not bp.Parent then
+                            if moveConn then moveConn:Disconnect() end
+                            return
+                        end
+                        local r = RaycastFromMouse()
+                        if r then bp.Position = r.Position + Vector3.new(0, 2, 0) end
+                    end))
+                    Notify("Puxando: " .. target.Name)
+                end
+            end))
+        else Notify("Puxar OFF") end
+    end)
+    btn("Listar Objetos Perto", function()
+        local myPos = GetHRP() and GetHRP().Position
+        if not myPos then return end
+        local count = 0
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and not obj:IsDescendantOf(LP.Character or game) then
+                local d = (obj.Position - myPos).Magnitude
+                if d < 50 then count = count + 1 end
+            end
+        end
+        Notify(count .. " objetos perto (50m)")
+    end)
+
+    sec("CHAT / JOGADORES")
+    btn("Quem tem mesmo chat", function()
+        local myChat = LP.Chatted
+        local names = {}
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LP then
+                table.insert(names, plr.Name)
+            end
+        end
+        if #names > 0 then
+            Notify("Jogadores: " .. table.concat(names, ", "))
+        else
+            Notify("So voce no server")
+        end
+    end)
+    btn("Listar Players + HP", function()
+        for _, plr in pairs(Players:GetPlayers()) do
+            local info = plr.Name
+            if plr.Character then
+                local h = plr.Character:FindFirstChildOfClass("Humanoid")
+                if h then info = info .. " | HP:" .. math.floor(h.Health) end
+            end
+            Notify(info)
+        end
     end)
 
     sec("INVASAO")
@@ -936,9 +1186,9 @@ local function LoadBrookhaven()
         if v then
             for _, obj in pairs(rs:GetDescendants()) do
                 if obj:IsA("RemoteEvent") then
-                    obj.OnClientEvent:Connect(function(...)
-                        if v then Notify("Remote: " .. obj.Name .. " | " .. tostring(select('#', ...)) .. " args") end
-                    end)
+                    addBC(obj.OnClientEvent:Connect(function(...)
+                        Notify("Remote: " .. obj.Name .. " | " .. tostring(select('#', ...)) .. " args")
+                    end))
                 end
             end
             Notify("Spy ON")
@@ -975,13 +1225,6 @@ local function LoadBrookhaven()
         end
         Notify(c .. " remotes em ReplicatedStorage")
     end)
-    btn("Listar Players", function()
-        for _, plr in pairs(Players:GetPlayers()) do
-            local info = plr.Name .. " | ID:" .. plr.UserId
-            if plr.Character then local h = plr.Character:FindFirstChildOfClass("Humanoid"); if h then info = info .. " | HP:" .. math.floor(h.Health) end end
-            Notify(info)
-        end
-    end)
     btn("Server Hop", function()
         pcall(function()
             local t = game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
@@ -993,8 +1236,67 @@ local function LoadBrookhaven()
     end)
     btn("Copiar Server ID", function() setclipboard(game.JobId); Notify("Copiado!") end)
 
+    sec("FECHAR MENU")
+    btn("FECHAR e limpar tudo", function()
+        local confirm = Instance.new("Frame")
+        confirm.Size = UDim2.new(0, 260, 0, 140)
+        confirm.Position = UDim2.new(0.5, -130, 0.5, -70)
+        confirm.BackgroundColor3 = Color3.fromRGB(30, 10, 10)
+        confirm.BorderSizePixel = 0
+        confirm.Parent = gui
+        confirm.ZIndex = 999
+        Instance.new("UICorner", confirm).CornerRadius = UDim.new(0, 10)
+        Instance.new("UIStroke", confirm).Color = Color3.fromRGB(255, 60, 60)
+
+        local txt = Instance.new("TextLabel")
+        txt.Size = UDim2.new(1, -20, 0, 40)
+        txt.Position = UDim2.new(0, 10, 0, 15)
+        txt.BackgroundTransparency = 1
+        txt.Text = "Tem certeza?\nTodos os comandos serao parados."
+        txt.TextColor3 = Color3.new(1, 1, 1)
+        txt.TextSize = 13
+        txt.Font = Enum.Font.GothamBold
+        txt.Parent = confirm
+
+        local yesBtn = Instance.new("TextButton")
+        yesBtn.Size = UDim2.new(0.45, 0, 0, 32)
+        yesBtn.Position = UDim2.new(0.05, 5, 1, -45)
+        yesBtn.BackgroundColor3 = Color3.fromRGB(180, 30, 30)
+        yesBtn.Text = "SIM, FECHAR"
+        yesBtn.TextColor3 = Color3.new(1, 1, 1)
+        yesBtn.TextSize = 12
+        yesBtn.Font = Enum.Font.GothamBold
+        yesBtn.Parent = confirm
+        Instance.new("UICorner", yesBtn).CornerRadius = UDim.new(0, 6)
+
+        local noBtn = Instance.new("TextButton")
+        noBtn.Size = UDim2.new(0.45, 0, 0, 32)
+        noBtn.Position = UDim2.new(0.5, 0, 1, -45)
+        noBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+        noBtn.Text = "CANCELAR"
+        noBtn.TextColor3 = Color3.new(1, 1, 1)
+        noBtn.TextSize = 12
+        noBtn.Font = Enum.Font.GothamBold
+        noBtn.Parent = confirm
+        Instance.new("UICorner", noBtn).CornerRadius = UDim.new(0, 6)
+
+        yesBtn.MouseButton1Click:Connect(function()
+            confirm:Destroy()
+            for _, c in pairs(brookConns) do pcall(function() c:Disconnect() end) end
+            brookConns = {}
+            Cleanup()
+            frame.Visible = false
+            gameMode = nil
+            selector.Visible = true
+            Notify("Tudo fechado!")
+        end)
+        noBtn.MouseButton1Click:Connect(function()
+            confirm:Destroy()
+        end)
+    end)
+
     frame.Visible = true
-    Notify("Brookhaven Hub! F1 = menu")
+    Notify("Brookhaven Hub! F1 = menu | F2 = liberar mouse")
 end
 
 -- ============================================================

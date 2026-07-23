@@ -370,55 +370,61 @@ local function LoadMacacamelon()
         else Notify("Click TP OFF") end
     end)
 
-    sec("GRUDAR EM JOGADOR")
-    local stickWeld = nil
-    local stickTarget = nil
-    local stickCycle = false
-    local stickCycleConn = nil
+    sec("SEGUIR JOGADOR")
+    local followConn = nil
+    local followTarget = nil
+    local followTimer = 0
+    local followCycling = false
 
-    tog("Grudar (weld) no mais proximo", function(v)
-        if stickWeld then stickWeld:Destroy(); stickWeld = nil end
-        stickTarget = nil
+    tog("Seguir (CFrame atras)", function(v)
+        if followConn then followConn:Disconnect(); followConn = nil end
+        followTarget = nil
         if v then
-            local myHRP = GetHRP()
-            if not myHRP then Notify("Sem HRP"); return end
-            local closest, closestDist = nil, math.huge
-            local myPos = myHRP.Position
-            for _, plr in pairs(Players:GetPlayers()) do
-                if plr ~= LP and plr.Character then
-                    local r = plr.Character:FindFirstChild("HumanoidRootPart")
-                    if r then
-                        local d = (r.Position - myPos).Magnitude
-                        if d < closestDist then closestDist = d; closest = r end
+            followConn = RunService.RenderStepped:Connect(function()
+                if not v then return end
+                local closest, closestDist = nil, math.huge
+                local myPos = GetHRP() and GetHRP().Position
+                if not myPos then return end
+                for _, plr in pairs(Players:GetPlayers()) do
+                    if plr ~= LP and plr.Character then
+                        local r = plr.Character:FindFirstChild("HumanoidRootPart")
+                        if r then
+                            local d = (r.Position - myPos).Magnitude
+                            if d < closestDist then closestDist = d; closest = r end
+                        end
                     end
                 end
-            end
-            if closest then
-                stickTarget = closest
-                stickWeld = Instance.new("Weld", myHRP)
-                stickWeld.Part0 = myHRP
-                stickWeld.Part1 = closest
-                stickWeld.C0 = CFrame.new(0, 1, -3)
-                Notify("Grudado em " .. stickTarget.Parent.Name)
-            else
-                Notify("Nenhum jogador perto")
-            end
-        else
-            if stickCycleConn then stickCycleConn:Disconnect(); stickCycleConn = nil end
-            Notify("Solto") end
+                if closest then
+                    followTarget = closest
+                    local myHRP = GetHRP()
+                    if myHRP and followTarget then
+                        myHRP.CFrame = CFrame.new(followTarget.Position - followTarget.CFrame.LookVector * 4 + Vector3.new(0, 1, 0))
+                        myHRP.CFrame = CFrame.lookAt(myHRP.Position, followTarget.Position)
+                    end
+                end
+            end)
+            Notify("Seguindo")
+        else Notify("Parou") end
     end)
 
-    tog("Trocar alvo automaticamente", function(v)
-        stickCycle = v
-        if stickCycleConn then stickCycleConn:Disconnect(); stickCycleConn = nil end
+    tog("Seguir (troca de 3 em 3s)", function(v)
+        followCycling = v
+        followTimer = 0
         if v then
-            local cycleTimer = 0
-            stickCycleConn = RunService.RenderStepped:Connect(function()
-                if not stickCycle then stickCycleConn:Disconnect(); return end
-                if not stickWeld then return end
-                cycleTimer = cycleTimer + task.wait()
-                if cycleTimer < 2.5 then return end
-                cycleTimer = 0
+            if followConn then followConn:Disconnect(); followConn = nil end
+            followConn = RunService.RenderStepped:Connect(function()
+                if not followCycling then return end
+                followTimer = followTimer + task.wait()
+                if followTimer < 3 then
+                    if not followTarget then return end
+                    local myHRP = GetHRP()
+                    if myHRP and followTarget then
+                        myHRP.CFrame = CFrame.new(followTarget.Position - followTarget.CFrame.LookVector * 4 + Vector3.new(0, 1, 0))
+                        myHRP.CFrame = CFrame.lookAt(myHRP.Position, followTarget.Position)
+                    end
+                    return
+                end
+                followTimer = 0
                 local targets = {}
                 local myPos = GetHRP() and GetHRP().Position
                 if not myPos then return end
@@ -431,17 +437,27 @@ local function LoadMacacamelon()
                 table.sort(targets, function(a, b) return a.dist < b.dist end)
                 if #targets >= 2 then
                     for i = 1, #targets do
-                        if targets[i].hrp ~= stickTarget then
-                            stickTarget = targets[i].hrp
-                            stickWeld.Part1 = stickTarget
-                            Notify("Novo alvo: " .. stickTarget.Parent.Name)
+                        if targets[i].hrp ~= followTarget then
+                            followTarget = targets[i].hrp
+                            Notify("Novo alvo: " .. followTarget.Parent.Name)
                             break
                         end
                     end
+                else
+                    if #targets == 1 then
+                        followTarget = targets[1].hrp
+                    end
+                end
+                if followTarget then
+                    local myHRP = GetHRP()
+                    if myHRP then
+                        myHRP.CFrame = CFrame.new(followTarget.Position - followTarget.CFrame.LookVector * 4 + Vector3.new(0, 1, 0))
+                        myHRP.CFrame = CFrame.lookAt(myHRP.Position, followTarget.Position)
+                    end
                 end
             end)
-            Notify("Troca automatica ON - a cada 2.5s")
-        else Notify("Troca OFF") end
+            Notify("Seguindo - troca a cada 3s")
+        else Notify("Parou") end
     end)
 
     sec("MODO IMPLACAVEL")

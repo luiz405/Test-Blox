@@ -303,20 +303,65 @@ local function LoadMacacamelon()
         if input.KeyCode == Enum.KeyCode.F1 then frame.Visible = not frame.Visible end
     end)
 
-    sec("ESP")
-    tog("ESP (Caixa + Nome + Tracer)", function(v)
-        EspOn = v
-        if not v then ClearESP() end
+    sec("CLICK TP")
+    local clickTPOn = false
+    local clickSelectOn = false
+    local selectedTarget = nil
+
+    tog("Click p/ TP no perto", function(v)
+        clickTPOn = v
         if v then
-            if EspUpdateConn then EspUpdateConn:Disconnect() end
-            EspUpdateConn = RunService.RenderStepped:Connect(function()
-                if EspOn then UpdateESP() end
+            Mouse.Button1Down:Connect(function()
+                if not clickTPOn then return end
+                local closest, closestDist = nil, math.huge
+                local myPos = GetHRP() and GetHRP().Position
+                if not myPos then return end
+                for _, plr in pairs(Players:GetPlayers()) do
+                    if plr ~= LP and plr.Character then
+                        local r = plr.Character:FindFirstChild("HumanoidRootPart")
+                        if r then
+                            local d = (r.Position - myPos).Magnitude
+                            if d < closestDist then closestDist = d; closest = r end
+                        end
+                    end
+                end
+                if closest and closestDist < 100 then
+                    local myHRP = GetHRP()
+                    if myHRP then
+                        myHRP.CFrame = CFrame.new(closest.Position - closest.CFrame.LookVector * 4 + Vector3.new(0, 1, 0))
+                        Notify("TP -> " .. closest.Parent.Name)
+                    end
+                end
             end)
-        end
-        Notify(v and "ESP ON" or "ESP OFF")
+            Notify("Click p/ TP ON")
+        else Notify("Click TP OFF") end
     end)
-    btn("Cor ESP - Vermelho", function() espColor = Color3.new(1, 0, 0); Notify("Cor = Vermelho") end)
-    btn("Cor ESP - Verde", function() espColor = Color3.new(0, 1, 0); Notify("Cor = Verde") end)
+
+    tog("Clicar p/ selecionar (seta)", function(v)
+        clickSelectOn = v
+        if v then
+            Mouse.Button1Down:Connect(function()
+                if not clickSelectOn then return end
+                local closest, closestDist = nil, math.huge
+                local myPos = GetHRP() and GetHRP().Position
+                if not myPos then return end
+                for _, plr in pairs(Players:GetPlayers()) do
+                    if plr ~= LP and plr.Character then
+                        local r = plr.Character:FindFirstChild("HumanoidRootPart")
+                        if r then
+                            local d = (r.Position - myPos).Magnitude
+                            if d < closestDist then closestDist = d; closest = r end
+                        end
+                    end
+                end
+                if closest and closestDist < 100 then
+                    selectedTarget = closest
+                    Notify("Alvo: " .. selectedTarget.Parent.Name)
+                end
+            end)
+            Notify("Click select ON")
+        else selectedTarget = nil; Notify("Select OFF") end
+    end)
 
     sec("MOVIMENTO")
     tog("Atravessar Paredes (Noclip)", function(v)
@@ -357,17 +402,6 @@ local function LoadMacacamelon()
                 Notify("Fly ON")
             end
         else Notify("Fly OFF") end
-    end)
-
-    sec("CLICK TP")
-    tog("Click p/ Teleportar", function(v)
-        ClickTPOn = v
-        if v then
-            Mouse.Button1Down:Connect(function()
-                if ClickTPOn then TeleportToClick() end
-            end)
-            Notify("Click TP ON - clique no chao")
-        else Notify("Click TP OFF") end
     end)
 
     sec("SEGUIR JOGADOR")
@@ -458,6 +492,44 @@ local function LoadMacacamelon()
             end)
             Notify("Seguindo - troca a cada 3s")
         else Notify("Parou") end
+    end)
+
+    btn("Seguir Aleatorio", function()
+        if followConn then followConn:Disconnect(); followConn = nil end
+        local players = {}
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LP and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                table.insert(players, plr)
+            end
+        end
+        if #players == 0 then Notify("Nenhum jogador"); return end
+        local target = players[math.random(1, #players)]
+        local tHRP = target.Character:FindFirstChild("HumanoidRootPart")
+        followTarget = tHRP
+        local randTimer = 0
+        followConn = RunService.RenderStepped:Connect(function()
+            randTimer = randTimer + task.wait()
+            if randTimer >= 3 then
+                randTimer = 0
+                local av = {}
+                for _, plr in pairs(Players:GetPlayers()) do
+                    if plr ~= LP and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                        table.insert(av, plr)
+                    end
+                end
+                if #av > 0 then
+                    local newT = av[math.random(1, #av)]
+                    followTarget = newT.Character:FindFirstChild("HumanoidRootPart")
+                    Notify("Aleatorio: " .. newT.Name)
+                end
+            end
+            local myHRP = GetHRP()
+            if myHRP and followTarget then
+                myHRP.CFrame = CFrame.new(followTarget.Position - followTarget.CFrame.LookVector * 4 + Vector3.new(0, 1, 0))
+                myHRP.CFrame = CFrame.lookAt(myHRP.Position, followTarget.Position)
+            end
+        end)
+        Notify("Seguindo aleatorio: " .. target.Name)
     end)
 
     sec("MODO IMPLACAVEL")

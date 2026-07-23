@@ -412,9 +412,13 @@ local function LoadMacacamelon()
         stickCycle = v
         if stickCycleConn then stickCycleConn:Disconnect(); stickCycleConn = nil end
         if v then
+            local cycleTimer = 0
             stickCycleConn = RunService.RenderStepped:Connect(function()
                 if not stickCycle then stickCycleConn:Disconnect(); return end
                 if not stickWeld then return end
+                cycleTimer = cycleTimer + task.wait()
+                if cycleTimer < 2.5 then return end
+                cycleTimer = 0
                 local targets = {}
                 local myPos = GetHRP() and GetHRP().Position
                 if not myPos then return end
@@ -428,18 +432,15 @@ local function LoadMacacamelon()
                 if #targets >= 2 then
                     for i = 1, #targets do
                         if targets[i].hrp ~= stickTarget then
-                            local oldTarget = stickTarget
                             stickTarget = targets[i].hrp
                             stickWeld.Part1 = stickTarget
                             Notify("Novo alvo: " .. stickTarget.Parent.Name)
-                            task.wait(2.5)
                             break
                         end
                     end
                 end
-                task.wait(1)
             end)
-            Notify("Troca automatica ON")
+            Notify("Troca automatica ON - a cada 2.5s")
         else Notify("Troca OFF") end
     end)
 

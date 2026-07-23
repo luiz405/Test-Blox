@@ -303,12 +303,13 @@ local function LoadMacacamelon()
         if input.KeyCode == Enum.KeyCode.F1 then frame.Visible = not frame.Visible end
     end)
 
-    sec("CLICK TP")
+    sec("DENTRO DO JOGADOR")
     local clickTPOn = false
     local clickSelectOn = false
     local selectedTarget = nil
+    local insideConn = nil
 
-    tog("Click p/ TP no perto", function(v)
+    tog("Click p/ TP DENTRO do perto", function(v)
         clickTPOn = v
         if v then
             Mouse.Button1Down:Connect(function()
@@ -328,16 +329,16 @@ local function LoadMacacamelon()
                 if closest and closestDist < 100 then
                     local myHRP = GetHRP()
                     if myHRP then
-                        myHRP.CFrame = CFrame.new(closest.Position - closest.CFrame.LookVector * 4 + Vector3.new(0, 1, 0))
-                        Notify("TP -> " .. closest.Parent.Name)
+                        myHRP.CFrame = closest.CFrame
+                        Notify("Dentro de " .. closest.Parent.Name)
                     end
                 end
             end)
-            Notify("Click p/ TP ON")
+            Notify("Click TP DENTRO ON")
         else Notify("Click TP OFF") end
     end)
 
-    tog("Clicar p/ selecionar (seta)", function(v)
+    tog("Clicar p/ selecionar alvo", function(v)
         clickSelectOn = v
         if v then
             Mouse.Button1Down:Connect(function()
@@ -361,6 +362,27 @@ local function LoadMacacamelon()
             end)
             Notify("Click select ON")
         else selectedTarget = nil; Notify("Select OFF") end
+    end)
+
+    btn("Seguir DENTRO do selecionado", function()
+        if not selectedTarget then Notify("Selecione um alvo primeiro!"); return end
+        if insideConn then insideConn:Disconnect(); insideConn = nil end
+        insideConn = RunService.RenderStepped:Connect(function()
+            if not selectedTarget or not selectedTarget.Parent then
+                Notify("Alvo perdido"); if insideConn then insideConn:Disconnect(); insideConn = nil end
+                return
+            end
+            local myHRP = GetHRP()
+            if myHRP and selectedTarget then
+                myHRP.CFrame = selectedTarget.CFrame
+            end
+        end)
+        Notify("Dentro de " .. selectedTarget.Parent.Name)
+    end)
+
+    btn("Parar de seguir dentro", function()
+        if insideConn then insideConn:Disconnect(); insideConn = nil end
+        Notify("Parou")
     end)
 
     sec("MOVIMENTO")
@@ -404,13 +426,14 @@ local function LoadMacacamelon()
         else Notify("Fly OFF") end
     end)
 
-    sec("SEGUIR JOGADOR")
+    sec("DENTRO DO JOGADOR")
     local followConn = nil
     local followTarget = nil
     local followTimer = 0
     local followCycling = false
+    local insideConn = nil
 
-    tog("Seguir (CFrame atras)", function(v)
+    tog("Seguir DENTRO do perto", function(v)
         if followConn then followConn:Disconnect(); followConn = nil end
         followTarget = nil
         if v then
@@ -432,16 +455,15 @@ local function LoadMacacamelon()
                     followTarget = closest
                     local myHRP = GetHRP()
                     if myHRP and followTarget then
-                        myHRP.CFrame = CFrame.new(followTarget.Position - followTarget.CFrame.LookVector * 4 + Vector3.new(0, 1, 0))
-                        myHRP.CFrame = CFrame.lookAt(myHRP.Position, followTarget.Position)
+                        myHRP.CFrame = followTarget.CFrame
                     end
                 end
             end)
-            Notify("Seguindo")
+            Notify("Seguindo DENTRO")
         else Notify("Parou") end
     end)
 
-    tog("Seguir (troca de 3 em 3s)", function(v)
+    tog("Dentro (troca de 3 em 3s)", function(v)
         followCycling = v
         followTimer = 0
         if v then
@@ -453,8 +475,7 @@ local function LoadMacacamelon()
                     if not followTarget then return end
                     local myHRP = GetHRP()
                     if myHRP and followTarget then
-                        myHRP.CFrame = CFrame.new(followTarget.Position - followTarget.CFrame.LookVector * 4 + Vector3.new(0, 1, 0))
-                        myHRP.CFrame = CFrame.lookAt(myHRP.Position, followTarget.Position)
+                        myHRP.CFrame = followTarget.CFrame
                     end
                     return
                 end
@@ -478,23 +499,18 @@ local function LoadMacacamelon()
                         end
                     end
                 else
-                    if #targets == 1 then
-                        followTarget = targets[1].hrp
-                    end
+                    if #targets == 1 then followTarget = targets[1].hrp end
                 end
                 if followTarget then
                     local myHRP = GetHRP()
-                    if myHRP then
-                        myHRP.CFrame = CFrame.new(followTarget.Position - followTarget.CFrame.LookVector * 4 + Vector3.new(0, 1, 0))
-                        myHRP.CFrame = CFrame.lookAt(myHRP.Position, followTarget.Position)
-                    end
+                    if myHRP then myHRP.CFrame = followTarget.CFrame end
                 end
             end)
-            Notify("Seguindo - troca a cada 3s")
+            Notify("Dentro - troca 3s")
         else Notify("Parou") end
     end)
 
-    btn("Seguir Aleatorio", function()
+    btn("Seguir Aleatorio DENTRO", function()
         if followConn then followConn:Disconnect(); followConn = nil end
         local players = {}
         for _, plr in pairs(Players:GetPlayers()) do
@@ -525,11 +541,60 @@ local function LoadMacacamelon()
             end
             local myHRP = GetHRP()
             if myHRP and followTarget then
-                myHRP.CFrame = CFrame.new(followTarget.Position - followTarget.CFrame.LookVector * 4 + Vector3.new(0, 1, 0))
-                myHRP.CFrame = CFrame.lookAt(myHRP.Position, followTarget.Position)
+                myHRP.CFrame = followTarget.CFrame
             end
         end)
-        Notify("Seguindo aleatorio: " .. target.Name)
+        Notify("Aleatorio DENTRO: " .. target.Name)
+    end)
+
+    sec("BODY TP (1s)")
+    local bodyTPOn = false
+    local bodyTPConn = nil
+    local bodyTarget = nil
+
+    btn("Selecionar perto (alvo body TP)", function()
+        local closest, closestDist = nil, math.huge
+        local myPos = GetHRP() and GetHRP().Position
+        if not myPos then return end
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LP and plr.Character then
+                local r = plr.Character:FindFirstChild("HumanoidRootPart")
+                if r then
+                    local d = (r.Position - myPos).Magnitude
+                    if d < closestDist then closestDist = d; closest = plr end
+                end
+            end
+        end
+        if closest then
+            bodyTarget = closest
+            Notify("Body TP alvo: " .. closest.Name)
+        else Notify("Nenhum perto") end
+    end)
+
+    tog("Body TP (1s partes aleatorias)", function(v)
+        bodyTPOn = v
+        if bodyTPConn then bodyTPConn:Disconnect(); bodyTPConn = nil end
+        if v then
+            if not bodyTarget then Notify("Selecione alvo primeiro!"); return end
+            bodyTPConn = RunService.RenderStepped:Connect(function()
+                if not bodyTPOn or not bodyTarget or not bodyTarget.Character then
+                    if bodyTPOn then Notify("Alvo perdido") end
+                    return
+                end
+                local myHRP = GetHRP()
+                if not myHRP then return end
+                local parts = {}
+                for _, p in pairs(bodyTarget.Character:GetDescendants()) do
+                    if p:IsA("BasePart") then table.insert(parts, p) end
+                end
+                if #parts > 0 then
+                    local randPart = parts[math.random(1, #parts)]
+                    myHRP.CFrame = randPart.CFrame
+                end
+                task.wait(1)
+            end)
+            Notify("Body TP ON - 1s")
+        else Notify("Body TP OFF") end
     end)
 
     sec("MODO IMPLACAVEL")

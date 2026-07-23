@@ -206,6 +206,87 @@ local function MakeMenu(title, color)
     return frame, content, sec, tog, btn
 end
 
+local Mouse = LP:GetMouse()
+local ClickTPOn = false
+local GrudadoOn = false
+local PaintParts = {}
+
+local function RaycastFromMouse()
+    local unitRay = Mouse.UnitRay
+    local origin = unitRay.Origin
+    local direction = unitRay.Direction * 1000
+    local params = RaycastParams.new()
+    params.FilterDescendantsInstances = {LP.Character}
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    local result = workspace:Raycast(origin, direction, params)
+    return result
+end
+
+local function TeleportToClick()
+    local result = RaycastFromMouse()
+    if result and result.Position then
+        local hrp = GetHRP()
+        if hrp then
+            hrp.CFrame = CFrame.new(result.Position + Vector3.new(0, 3, 0))
+            Notify("Teleportado!")
+        end
+    end
+end
+
+local function PaintChar(color, all)
+    local ch = GetChar()
+    if not ch then return end
+    for _, p in pairs(ch:GetDescendants()) do
+        if p:IsA("BasePart") then
+            p.Color = color
+            if all then
+                p.Material = Enum.Material.SmoothPlastic
+            end
+        end
+    end
+    Notify(all and "Pintado inteiro!" or "Partes pintadas!")
+end
+
+local function PaintSinglePart(color)
+    local ch = GetChar()
+    if not ch then return end
+    local parts = {}
+    for _, p in pairs(ch:GetDescendants()) do
+        if p:IsA("BasePart") then
+            table.insert(parts, p)
+        end
+    end
+    if #parts == 0 then return end
+    if not PaintParts.index then PaintParts.index = 1 end
+    local target = parts[PaintParts.index]
+    if target then
+        target.Color = color
+        target.Material = Enum.Material.SmoothPlastic
+        Notify("Pintou: " .. target.Name)
+    end
+    PaintParts.index = PaintParts.index + 1
+    if PaintParts.index > #parts then PaintParts.index = 1 end
+end
+
+local function GetSceneryColor()
+    local result = RaycastFromMouse()
+    if result and result.Instance then
+        local part = result.Instance
+        if part:IsA("BasePart") and part.Color then
+            local c = part.Color
+            Notify("Cor: " .. math.floor(c.R*255) .. "," .. math.floor(c.G*255) .. "," .. math.floor(c.B*255))
+            setclipboard(math.floor(c.R*255) .. "," .. math.floor(c.G*255) .. "," .. math.floor(c.B*255))
+            return c
+        elseif part:IsA("Terrain") then
+            local mat = workspace:GetMaterialColor(part.Material, result.Position)
+            Notify("Terreno: cor copiada")
+            return mat
+        end
+    end
+    Notify("Nada encontrado")
+    return nil
+end
+
 -- ============================================================
 -- MACACAMELON MODE
 -- ============================================================
@@ -230,6 +311,8 @@ local function LoadMacacamelon()
         end
         Notify(v and "ESP ON" or "ESP OFF")
     end)
+    btn("Cor ESP - Vermelho", function() espColor = Color3.new(1, 0, 0); Notify("Cor = Vermelho") end)
+    btn("Cor ESP - Verde", function() espColor = Color3.new(0, 1, 0); Notify("Cor = Verde") end)
 
     sec("MOVIMENTO")
     tog("Atravessar Paredes (Noclip)", function(v)
@@ -272,6 +355,118 @@ local function LoadMacacamelon()
         else Notify("Fly OFF") end
     end)
 
+    sec("CLICK TP")
+    tog("Click p/ Teleportar", function(v)
+        ClickTPOn = v
+        if v then
+            Mouse.Button1Down:Connect(function()
+                if ClickTPOn then TeleportToClick() end
+            end)
+            Notify("Click TP ON - clique no chao")
+        else Notify("Click TP OFF") end
+    end)
+
+    sec("GRUDADO")
+    local stickConn = nil
+    local stuckPart = nil
+    local weldObj = nil
+    tog("Ficar Grudado no Lugar", function(v)
+        if weldObj then weldObj:Destroy(); weldObj = nil end
+        if stickConn then stickConn:Disconnect(); stickConn = nil end
+        GrudadoOn = v
+        if v then
+            local hrp = GetHRP()
+            if hrp then
+                local pos = hrp.Position
+                local base = Instance.new("Part", workspace)
+                base.Name = "GrudeBase"; base.Size = Vector3.new(1, 1, 1)
+                base.Anchored = true; base.Transparency = 1; base.CanCollide = false
+                base.CFrame = CFrame.new(pos)
+                weldObj = Instance.new("Weld", hrp)
+                weldObj.Part0 = hrp; weldObj.Part1 = base
+                Notify("Grudado! Desative para soltar")
+            end
+        else Notify("Solto!") end
+    end)
+
+    tog("Grudar em Jogador (siga ele)", function(v)
+        if stickConn then stickConn:Disconnect(); stickConn = nil end
+        if v then
+            local lastTarget = nil
+            stickConn = RunService.RenderStepped:Connect(function()
+                if not v then stickConn:Disconnect(); return end
+                local closest, closestDist = nil, math.huge
+                local myPos = GetHRP() and GetHRP().Position
+                if not myPos then return end
+                for _, plr in pairs(Players:GetPlayers()) do
+                    if plr ~= LP and plr.Character then
+                        local r = plr.Character:FindFirstChild("HumanoidRootPart")
+                        if r then
+                            local d = (r.Position - myPos).Magnitude
+                            if d < closestDist then closestDist = d; closest = plr end
+                        end
+                    end
+                end
+                if closest then
+                    local myHRP = GetHRP()
+                    local tHRP = closest.Character:FindFirstChild("HumanoidRootPart")
+                    if myHRP and tHRP then
+                        lastTarget = closest
+                        myHRP.CFrame = CFrame.new(tHRP.Position - tHRP.CFrame.LookVector * 3 + Vector3.new(0, 1, 0))
+                    end
+                end
+            end)
+            Notify("Grudando no jogador mais perto")
+        else Notify("Parou de grudar") end
+    end)
+
+    sec("PINTAR")
+    local cc = Color3.fromRGB
+    btn("Pintar Inteiro - VERMELHO", function() PaintChar(cc(255, 0, 0), true) end)
+    btn("Pintar Inteiro - AZUL", function() PaintChar(cc(0, 100, 255), true) end)
+    btn("Pintar Inteiro - VERDE", function() PaintChar(cc(0, 200, 0), true) end)
+    btn("Pintar Inteiro - PRETO", function() PaintChar(cc(0, 0, 0), true) end)
+    btn("Pintar Inteiro - BRANCO", function() PaintChar(cc(255, 255, 255), true) end)
+    btn("Pintar Inteiro - AMARELO", function() PaintChar(cc(255, 255, 0), true) end)
+    btn("Pintar Inteiro - ROXO", function() PaintChar(cc(150, 0, 255), true) end)
+    btn("Pintar Inteiro - LARANJA", function() PaintChar(cc(255, 120, 0), true) end)
+
+    sec("PINTAR UMA PARTE (G)")
+    local gpConn
+    if gpConn then gpConn:Disconnect() end
+    gpConn = UserInputService.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        if gameMode ~= "macacamelon" then return end
+        if not frame.Visible then return end
+        if input.KeyCode == Enum.KeyCode.G then
+            PaintSinglePart(cc(255, 255, 0))
+        end
+    end)
+    local partIdx = Instance.new("TextLabel")
+    partIdx.Size = UDim2.new(1, 0, 0, 18)
+    partIdx.BackgroundTransparency = 1
+    partIdx.Text = "  Pressione G para pintar a prox. parte"
+    partIdx.TextColor3 = Color3.fromRGB(140, 140, 170)
+    partIdx.TextSize = 10
+    partIdx.Font = Enum.Font.Gotham
+    partIdx.TextXAlignment = Enum.TextXAlignment.Left
+    partIdx.Parent = content
+
+    sec("COR DO CENARIO")
+    local eyeDropperOn = false
+    tog("Conta-gotas (copiar cor)", function(v)
+        eyeDropperOn = v
+        if v then
+            Notify("Clique em algo para copiar a cor")
+            local con
+            con = Mouse.Button1Down:Connect(function()
+                if not eyeDropperOn then con:Disconnect(); return end
+                local c = GetSceneryColor()
+                if c then Notify("Cor copiada!") end
+            end)
+        end
+    end)
+
     sec("INVISIBILIDADE")
     tog("Ficar Totalmente Invisivel", function(v)
         InvisOn = v
@@ -286,19 +481,12 @@ local function LoadMacacamelon()
             if hum then
                 hum.DisplayDistanceType = v and Enum.HumanoidDisplayDistanceType.None or Enum.HumanoidDisplayDistanceType.Default
             end
-            if v then
-                ch.DescendantAdded:Connect(function(p)
-                    task.wait(0.1)
-                    if InvisOn and p:IsA("BasePart") then p.Transparency = 1; p.CanCollide = false end
-                    if InvisOn and p:IsA("Decal") then p.Transparency = 1 end
-                end)
-            end
         end
         Notify(v and "Invisivel" or "Visivel")
     end)
 
     frame.Visible = true
-    Notify("Macacamelon Hub! F1 = menu")
+    Notify("Macacamelon Hub! F1 = menu | G = pintar parte")
 end
 
 -- ============================================================

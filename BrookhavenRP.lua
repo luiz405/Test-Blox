@@ -73,11 +73,9 @@ local function UpdateESP()
             if not ESPObjects[plr] then
                 local b = Drawing.new("Quad")
                 b.Thickness = 1.5; b.Color = espColor; b.Filled = false; b.Visible = false
-                local t = Drawing.new("Line")
-                t.Thickness = 1.5; t.Color = espColor; t.Visible = false
                 local n = Drawing.new("Text")
                 n.Size = 14; n.Color = Color3.new(1, 1, 1); n.Center = true; n.Outline = true; n.OutlineColor = Color3.new(0, 0, 0); n.Visible = false
-                ESPObjects[plr] = { box = b, tracer = t, name = n }
+                ESPObjects[plr] = { box = b, name = n }
             end
             local obj = ESPObjects[plr]
             local char = plr.Character
@@ -99,13 +97,11 @@ local function UpdateESP()
                     local br = Vector2.new(b2d.X + w/2, b2d.Y)
                     obj.box.Points = { tl, tr, br, bl }; obj.box.Visible = true
                     obj.name.Position = tl - Vector2.new(0, 16); obj.name.Text = plr.Name; obj.name.Visible = true
-                    local ss = Camera.ViewportSize
-                    obj.tracer.From = Vector2.new(ss.X/2, ss.Y); obj.tracer.To = Vector2.new(b2d.X, b2d.Y); obj.tracer.Visible = true
                 else
-                    obj.box.Visible = false; obj.name.Visible = false; obj.tracer.Visible = false
+                    obj.box.Visible = false; obj.name.Visible = false
                 end
             else
-                obj.box.Visible = false; obj.name.Visible = false; obj.tracer.Visible = false
+                obj.box.Visible = false; obj.name.Visible = false
             end
         end
     end
@@ -322,7 +318,7 @@ local function LoadMacacamelon()
     local cc = Color3.fromRGB
 
     sec("ESP (Drawing)")
-    tog("ESP (Caixa + Nome + Tracer)", function(v)
+    tog("ESP (Caixa + Nome)", function(v)
         EspOn = v
         if not v then ClearESP() end
         if v then
@@ -443,15 +439,18 @@ local function LoadMacacamelon()
         else Notify("Parou") end
     end)
 
+    local cycleInterval = 3
+
     tog("Dentro (troca de 3 em 3s)", function(v)
         followCycling = v
         followTimer = 0
+        cycleInterval = 3
         if v then
             if followConn then followConn:Disconnect(); followConn = nil end
             followConn = addConn(RunService.RenderStepped:Connect(function()
                 if not followCycling then return end
                 followTimer = followTimer + task.wait()
-                if followTimer < 3 then
+                if followTimer < cycleInterval then
                     if not followTarget then return end
                     local myHRP = GetHRP()
                     if myHRP and followTarget then myHRP.CFrame = followTarget.CFrame end
@@ -485,6 +484,52 @@ local function LoadMacacamelon()
                 end
             end))
             Notify("Dentro - troca 3s")
+        else Notify("Parou") end
+    end)
+
+    tog("Dentro (troca de 2 em 2s)", function(v)
+        followCycling = v
+        followTimer = 0
+        cycleInterval = 2
+        if v then
+            if followConn then followConn:Disconnect(); followConn = nil end
+            followConn = addConn(RunService.RenderStepped:Connect(function()
+                if not followCycling then return end
+                followTimer = followTimer + task.wait()
+                if followTimer < cycleInterval then
+                    if not followTarget then return end
+                    local myHRP = GetHRP()
+                    if myHRP and followTarget then myHRP.CFrame = followTarget.CFrame end
+                    return
+                end
+                followTimer = 0
+                local targets = {}
+                local myPos = GetHRP() and GetHRP().Position
+                if not myPos then return end
+                for _, plr in pairs(Players:GetPlayers()) do
+                    if plr ~= LP and plr.Character then
+                        local r = plr.Character:FindFirstChild("HumanoidRootPart")
+                        if r then table.insert(targets, {hrp = r, dist = (r.Position - myPos).Magnitude}) end
+                    end
+                end
+                table.sort(targets, function(a, b) return a.dist < b.dist end)
+                if #targets >= 2 then
+                    for i = 1, #targets do
+                        if targets[i].hrp ~= followTarget then
+                            followTarget = targets[i].hrp
+                            Notify("Novo alvo: " .. followTarget.Parent.Name)
+                            break
+                        end
+                    end
+                else
+                    if #targets == 1 then followTarget = targets[1].hrp end
+                end
+                if followTarget then
+                    local myHRP = GetHRP()
+                    if myHRP then myHRP.CFrame = followTarget.CFrame end
+                end
+            end))
+            Notify("Dentro - troca 2s")
         else Notify("Parou") end
     end)
 
@@ -804,7 +849,7 @@ local function LoadBrookhaven()
     end)
 
     sec("ESP (Drawing 2D)")
-    tog("ESP (Caixa + Nome + Tracer)", function(v)
+    tog("ESP (Caixa + Nome)", function(v)
         EspOn = v
         if not v then ClearESP() end
         if v then

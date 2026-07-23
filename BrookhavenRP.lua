@@ -597,6 +597,48 @@ local function LoadMacacamelon()
         else Notify("Body TP OFF") end
     end)
 
+    sec("CABECA (click)")
+    local cabecaConn = nil
+    local cabecaAlvo = nil
+
+    btn("Selecionar perto (cabeÃ§a)", function()
+        local closest, closestDist = nil, math.huge
+        local myPos = GetHRP() and GetHRP().Position
+        if not myPos then return end
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LP and plr.Character then
+                local r = plr.Character:FindFirstChild("HumanoidRootPart")
+                if r then
+                    local d = (r.Position - myPos).Magnitude
+                    if d < closestDist then closestDist = d; closest = plr end
+                end
+            end
+        end
+        if closest then
+            cabecaAlvo = closest
+            Notify("Alvo: " .. closest.Name)
+        else Notify("Nenhum perto") end
+    end)
+
+    tog("Seguir na CABECA do alvo", function(v)
+        if cabecaConn then cabecaConn:Disconnect(); cabecaConn = nil end
+        if v then
+            if not cabecaAlvo then Notify("Selecione alvo!"); return end
+            cabecaConn = RunService.RenderStepped:Connect(function()
+                if not v or not cabecaAlvo or not cabecaAlvo.Character then
+                    if v then Notify("Alvo perdido") end
+                    return
+                end
+                local head = cabecaAlvo.Character:FindFirstChild("Head")
+                local myHRP = GetHRP()
+                if myHRP and head then
+                    myHRP.CFrame = CFrame.new(head.Position + Vector3.new(0, 0.5, 0))
+                end
+            end)
+            Notify("Na CABECA de " .. cabecaAlvo.Name)
+        else Notify("Parou") end
+    end)
+
     sec("MODO IMPLACAVEL")
     local implacavelOn = false
     local intangivelOn = false
@@ -1017,3 +1059,18 @@ sFoot.Parent = selector
 
 selector.Visible = true
 Notify("Selecione um jogo")
+
+-- F2 = Liberar/travar mouse (pra conseguir clicar no menu)
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.F2 then
+        if UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter or UserInputService.MouseBehavior == Enum.MouseBehavior.LockOnFocus then
+            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            UserInputService.MouseIconEnabled = true
+            Notify("Mouse liberado (F2)")
+        else
+            UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+            Notify("Mouse travado (F2)")
+        end
+    end
+end)

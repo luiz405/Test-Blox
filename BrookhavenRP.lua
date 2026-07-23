@@ -13,6 +13,8 @@ local EspOn = false
 local ESPObjects = {}
 local espColor = Color3.new(1, 0, 0)
 local EspUpdateConn = nil
+local implacavelConn = nil
+local intangivelConn = nil
 local Camera = workspace.CurrentCamera
 
 local gui = Instance.new("ScreenGui")
@@ -50,6 +52,8 @@ local function Cleanup()
         for _, d in pairs(obj) do pcall(function() d:Remove() end) end
     end
     ESPObjects = {}
+    if implacavelConn then implacavelConn:Disconnect(); implacavelConn = nil end
+    if intangivelConn then intangivelConn:Disconnect(); intangivelConn = nil end
     NoclipOn = false; FlyOn = false; InvisOn = false; EspOn = false
 end
 
@@ -418,6 +422,113 @@ local function LoadMacacamelon()
             end)
             Notify("Grudando no jogador mais perto")
         else Notify("Parou de grudar") end
+    end)
+
+    sec("MODO IMPLACAVEL")
+    local implacavelOn = false
+    local intangivelOn = false
+
+    tog("Intangivel (leva dano zero)", function(v)
+        intangivelOn = v
+        if intangivelConn then intangivelConn:Disconnect(); intangivelConn = nil end
+        if v then
+            intangivelConn = RunService.Heartbeat:Connect(function()
+                if not intangivelOn then intangivelConn:Disconnect(); return end
+                local h = GetHum()
+                if h then
+                    h.Health = h.MaxHealth
+                    h:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+                    h:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+                    h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+                    h.BreakJointsOnDeath = false
+                end
+                local ch = GetChar()
+                if ch then
+                    for _, p in pairs(ch:GetDescendants()) do
+                        if p:IsA("BasePart") then p.CanCollide = false end
+                    end
+                end
+            end)
+            Notify("Intangivel ON - nao leva dano")
+        else
+            Notify("Intangivel OFF")
+        end
+    end)
+
+    tog("Modo Implacavel (TP + seguir)", function(v)
+        implacavelOn = v
+        if implacavelConn then implacavelConn:Disconnect(); implacavelConn = nil end
+        if v then
+            if not intangivelOn then
+                intangivelOn = true
+                if intangivelConn then intangivelConn:Disconnect(); intangivelConn = nil end
+                intangivelConn = RunService.Heartbeat:Connect(function()
+                    if not intangivelOn then return end
+                    local h = GetHum()
+                    if h then h.Health = h.MaxHealth; h.BreakJointsOnDeath = false end
+                    local ch = GetChar()
+                    if ch then for _, p in pairs(ch:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end
+                end)
+            end
+            local targets = {}
+            local targetIdx = 1
+            local teleportTimer = 0
+            implacavelConn = RunService.RenderStepped:Connect(function()
+                if not implacavelOn then return end
+                teleportTimer = teleportTimer + task.wait()
+                targets = {}
+                local myPos = GetHRP() and GetHRP().Position
+                if not myPos then return end
+                for _, plr in pairs(Players:GetPlayers()) do
+                    if plr ~= LP and plr.Character then
+                        local r = plr.Character:FindFirstChild("HumanoidRootPart")
+                        if r then
+                            table.insert(targets, { plr = plr, hrp = r, dist = (r.Position - myPos).Magnitude })
+                        end
+                    end
+                end
+                table.sort(targets, function(a, b) return a.dist < b.dist end)
+                if #targets > 0 then
+                    if teleportTimer >= 0.8 then
+                        teleportTimer = 0
+                        targetIdx = targetIdx + 1
+                        if targetIdx > #targets then targetIdx = 1 end
+                    end
+                    local idx = math.min(targetIdx, #targets)
+                    local myHRP = GetHRP()
+                    local tHRP = targets[idx].hrp
+                    if myHRP and tHRP then
+                        local behind = tHRP.CFrame.LookVector * -1
+                        local offset = Vector3.new(0, 0, 0)
+                        local t = teleportTimer
+                        if t < 0.2 then
+                            offset = behind * 8 + Vector3.new(0, 3, 0)
+                        elseif t < 0.4 then
+                            offset = Vector3.new(4, 1, 4)
+                        elseif t < 0.6 then
+                            offset = Vector3.new(-4, 2, -4)
+                        else
+                            offset = behind * 5 + Vector3.new(2, 1, -2)
+                        end
+                        if teleportTimer < 0.05 then
+                            myHRP.CFrame = CFrame.new(tHRP.Position + offset)
+                        else
+                            local targetPos = tHRP.Position + offset
+                            local moveDir = (targetPos - myHRP.Position).Unit * math.min((targetPos - myHRP.Position).Magnitude * 0.3, 30)
+                            myHRP.CFrame = myHRP.CFrame + moveDir
+                        end
+                        local cam = workspace.CurrentCamera
+                        if cam then
+                            local dir = (tHRP.Position - myHRP.Position).Unit
+                            myHRP.CFrame = CFrame.lookAt(myHRP.Position, myHRP.Position + dir * 100)
+                        end
+                    end
+                end
+            end)
+            Notify("Modo Implacavel ON - teleportando entre jogadores")
+        else
+            Notify("Modo Implacavel OFF")
+        end
     end)
 
     sec("PINTAR")

@@ -1154,6 +1154,117 @@ local function LoadBrookhaven()
         Notify(count .. " objetos perto (50m)")
     end)
 
+    sec("PUXAR TUDO (sem distancia)")
+    local puxarTudoOn = false
+    local puxarTudoConn = nil
+    local puxarTudoParts = {}
+
+    tog("Puxar tudo (click em qualquer lugar)", function(v)
+        puxarTudoOn = v
+        if puxarTudoConn then puxarTudoConn:Disconnect(); puxarTudoConn = nil end
+        if not v then
+            for _, info in pairs(puxarTudoParts) do
+                if info.bp and info.bp.Parent then info.bp:Destroy() end
+                if info.part and info.part.Parent then info.part.CanCollide = true end
+            end
+            puxarTudoParts = {}
+        end
+        if v then
+            Notify("Clique em qualquer objeto do mapa (sem limite de distancia)")
+            puxarTudoConn = addBC(Mouse.Button1Down:Connect(function()
+                if not puxarTudoOn then return end
+                local result = RaycastFromMouse()
+                if not result or not result.Instance then return end
+                local target = result.Instance
+                if target:IsA("BasePart") and not target:IsDescendantOf(LP.Character or LP.Character) then
+                    puxarTudoParts[target] = puxarTudoParts[target] or {}
+                    local info = puxarTudoParts[target]
+                    if not info.bp or not info.bp.Parent then
+                        target.CanCollide = false
+                        local bp = Instance.new("BodyPosition")
+                        bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                        bp.D = 500
+                        bp.P = 50000
+                        bp.Position = target.Position
+                        bp.Parent = target
+                        info.bp = bp
+                        info.part = target
+                        Notify("Puxando: " .. target.Name)
+                    end
+                end
+            end))
+            addBC(RunService.RenderStepped:Connect(function()
+                if not puxarTudoOn then return end
+                local myHRP = GetHRP()
+                if not myHRP then return end
+                local count = 0
+                for part, info in pairs(puxarTudoParts) do
+                    if not part or not part.Parent then
+                        puxarTudoParts[part] = nil
+                    else
+                        count = count + 1
+                        local bp = info.bp
+                        if bp and bp.Parent then
+                            bp.Position = myHRP.Position + Vector3.new(0, 5 + count * 3, 0)
+                        end
+                    end
+                end
+            end))
+        else Notify("Puxar tudo OFF") end
+    end)
+
+    btn("Puxar carros (todos perto)", function()
+        local myPos = GetHRP() and GetHRP().Position
+        if not myPos then return end
+        local count = 0
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("Model") then
+                local name = obj.Name:lower()
+                if name:find("car") or name:find("veh") or name:find("truck") or name:find("bus") then
+                    for _, p in pairs(obj:GetDescendants()) do
+                        if p:IsA("BasePart") and not p:IsDescendantOf(LP.Character) then
+                            puxarTudoParts[p] = puxarTudoParts[p] or {}
+                            if not puxarTudoParts[p].bp or not puxarTudoParts[p].bp.Parent then
+                                p.CanCollide = false
+                                local bp = Instance.new("BodyPosition")
+                                bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                                bp.D = 500
+                                bp.P = 50000
+                                bp.Position = p.Position
+                                bp.Parent = p
+                                puxarTudoParts[p] = { bp = bp, part = p }
+                            end
+                            count = count + 1
+                        end
+                    end
+                end
+            end
+        end
+        if count > 0 then
+            addBC(RunService.RenderStepped:Connect(function()
+                local myHRP = GetHRP()
+                if not myHRP then return end
+                local i = 0
+                for part, info in pairs(puxarTudoParts) do
+                    if part and part.Parent and info.bp and info.bp.Parent then
+                        i = i + 1
+                        info.bp.Position = myHRP.Position + Vector3.new(0, 5 + i * 3, 0)
+                    end
+                end
+            end))
+        end
+        Notify("Puxou " .. count .. " partes de carros")
+    end)
+
+    btn("Soltar tudo", function()
+        for _, info in pairs(puxarTudoParts) do
+            if info.bp and info.bp.Parent then info.bp:Destroy() end
+            if info.part and info.part.Parent then info.part.CanCollide = true end
+        end
+        puxarTudoParts = {}
+        Notify("Tudo solto!")
+    end)
+
     sec("PORTA GIRATORIA (voa pessoa)")
     local portaOn = false
     local portaConn = nil

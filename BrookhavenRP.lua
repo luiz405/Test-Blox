@@ -1154,6 +1154,95 @@ local function LoadBrookhaven()
         Notify(count .. " objetos perto (50m)")
     end)
 
+    sec("PORTA GIRATORIA (voa pessoa)")
+    local portaOn = false
+    local portaConn = nil
+    local portaPart = nil
+    local portaAngle = 0
+    local portaTouchConn = nil
+
+    tog("Porta Giratoria ON (click)", function(v)
+        portaOn = v
+        if portaConn then portaConn:Disconnect(); portaConn = nil end
+        if portaTouchConn then portaTouchConn:Disconnect(); portaTouchConn = nil end
+        if portaPart and portaPart.Parent then
+            if portaPart:FindFirstChild("BodyPosition_porta") then portaPart.BodyPosition_porta:Destroy() end
+            if portaPart:FindFirstChild("BodyAngularVelocity_porta") then portaPart.BodyAngularVelocity_porta:Destroy() end
+            portaPart.CanCollide = true
+        end
+        portaPart = nil
+        portaAngle = 0
+        if v then
+            portaConn = addBC(Mouse.Button1Down:Connect(function()
+                if not portaOn or portaPart then return end
+                local result = RaycastFromMouse()
+                if not result or not result.Instance then return end
+                local target = result.Instance
+                if target:IsA("BasePart") and not target:IsDescendantOf(LP.Character or game) then
+                    portaPart = target
+                    target.CanCollide = false
+                    local bp = Instance.new("BodyPosition")
+                    bp.Name = "BodyPosition_porta"
+                    bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                    bp.D = 400; bp.P = 10000
+                    bp.Position = target.Position
+                    bp.Parent = target
+                    local bav = Instance.new("BodyAngularVelocity")
+                    bav.Name = "BodyAngularVelocity_porta"
+                    bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+                    bav.AngularVelocity = Vector3.new(0, 30, 0)
+                    bav.P = 5000
+                    bav.Parent = target
+                    portaTouchConn = addBC(target.Touched:Connect(function(hit)
+                        if not portaOn or not portaPart then return end
+                        local char = hit:FindFirstAncestorOfClass("Model")
+                        if not char then return end
+                        local plr = Players:GetPlayerFromCharacter(char)
+                        if plr and plr ~= LP then
+                            local hrp = char:FindFirstChild("HumanoidRootPart")
+                            if hrp then
+                                hrp.AssemblyLinearVelocity = Vector3.new(
+                                    math.random(-80, 80),
+                                    math.random(150, 250),
+                                    math.random(-80, 80)
+                                )
+                                Notify("VOOU: " .. plr.Name)
+                            end
+                        end
+                    end))
+                    Notify("Porta girando! Aproxime de pessoas")
+                end
+            end))
+            local spinConn
+            spinConn = addBC(RunService.RenderStepped:Connect(function()
+                if not portaOn or not portaPart or not portaPart.Parent then
+                    if spinConn then spinConn:Disconnect() end
+                    return
+                end
+                local myHRP = GetHRP()
+                if not myHRP then return end
+                portaAngle = portaAngle + 0.15
+                local radius = 6
+                local x = math.cos(portaAngle) * radius
+                local z = math.sin(portaAngle) * radius
+                local targetPos = myHRP.Position + Vector3.new(x, 0, z)
+                local bp = portaPart:FindFirstChild("BodyPosition_porta")
+                if bp then bp.Position = targetPos end
+            end))
+            Notify("Clique numa porta/objeto pra girar!")
+        else Notify("Porta OFF") end
+    end)
+
+    btn("Soltar porta", function()
+        if portaPart and portaPart.Parent then
+            if portaPart:FindFirstChild("BodyPosition_porta") then portaPart.BodyPosition_porta:Destroy() end
+            if portaPart:FindFirstChild("BodyAngularVelocity_porta") then portaPart.BodyAngularVelocity_porta:Destroy() end
+            portaPart.CanCollide = true
+        end
+        portaPart = nil
+        Notify("Porta solta")
+    end)
+
     sec("CHAT / JOGADORES")
     btn("Quem tem mesmo chat", function()
         local myChat = LP.Chatted
